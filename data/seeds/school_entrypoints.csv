@@ -1,0 +1,6 @@
+school,unit,entry_url,entry_type,url_pattern,pagination_pattern,person_link_selector,api_endpoint,roles_included,notes,status
+Columbia University,Teachers College,https://www.tc.columbia.edu/faculty-and-research/faculty-profiles/,html_json_list,https://www.tc.columbia.edu/faculty-and-research/faculty-profiles/{slug}/,,script.fd-content-json a[href],,faculty; instructor; adjunct,"已测试：页面内含 fd-content-json，可从列表页解析教师链接和基础字段",verified
+Stanford University,Graduate School of Education,https://ed.stanford.edu/faculty/profiles,html_card_list,https://ed.stanford.edu/faculty/{slug},,a[href*='/faculty/'],,faculty,"待跑通：教育学院教师目录，后续按管理科学相关方向筛选",new
+University of Pennsylvania,Wharton,https://www.wharton.upenn.edu/faculty-directory/,html_directory,https://{department}.wharton.upenn.edu/profile/{slug},,a[href*='/profile/'],,faculty,"已测试：商学院教师目录，包含 OPIM、Statistics、Marketing、Finance 等部门和个人页链接",verified
+MIT,Sloan School of Management,https://mitsloan.mit.edu/faculty/directory,html_directory,https://mitsloan.mit.edu/faculty/directory/{slug},,a[href*='/faculty/directory/'],,faculty,"待验证：商学院教师目录，可能需要 JS/API 支持",new
+Carnegie Mellon University,Tepper School of Business,https://www.cmu.edu/tepper/faculty-and-research/faculty-by-area/index.html,html_directory,,,,,faculty,"待验证：按领域组织，适合管理科学/运筹/信息系统方向入口",new

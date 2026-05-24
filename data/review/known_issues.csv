@@ -1,0 +1,2 @@
+created_at,milestone,issue_type,severity,status,summary,example,planned_action
+2026-05-22 15:17:22 CST,M5,publication_author_identity,medium,open,论文来源作者存在缩写名与全名可能指向同一人的归并问题，当前先记录不修改数据,"H Zhang / Hong Zhang 可能同属 Eller College of Management, University of Arizona",后续整体复核阶段实现保守作者身份归并；仅在姓名首字母/姓氏/机构/论文上下文高置信时建议合并，低置信输出复核 CSV

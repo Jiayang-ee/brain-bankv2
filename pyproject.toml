@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "faculty-spider-v3"
+version = "0.1.0"
+description = "Maintainable multi-source faculty talent collection pipeline"
+requires-python = ">=3.9"
+dependencies = [
+  "beautifulsoup4",
+  "openpyxl",
+  "requests",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+faculty-spider-v3 = "faculty_spider_v3.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

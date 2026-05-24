@@ -1,0 +1,40 @@
+journal_name,achievement_level,issn,collection_group,default_for_m6,reason,notes
+NATURE,A+(TOP),0028-0836,broad_high_impact,no,综合顶刊，主题噪声高,作为高影响力补充组单独跑
+SCIENCE,A+(TOP),0036-8075,broad_high_impact,no,综合顶刊，主题噪声高,作为高影响力补充组单独跑
+PROCEEDINGS OF THE NATIONAL ACADEMY OF SCIENCES OF THE UNITED STATES OF AMERICA,A+,0027-8424,broad_high_impact,no,综合顶刊，主题噪声高,作为高影响力补充组单独跑
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE,A+,0162-8828,broad_high_impact,no,AI/计算机视觉顶刊，和管理科学相关性需二次筛选,作为高影响力补充组单独跑
+JOURNAL OF MACHINE LEARNING RESEARCH,A+,1532-4435,broad_high_impact,no,机器学习顶刊，主题覆盖广,作为高影响力补充组单独跑
+ANNALS OF STATISTICS,A+,0090-5364,broad_high_impact,no,统计学顶刊，主题覆盖广,作为高影响力补充组单独跑
+JOURNAL OF THE AMERICAN STATISTICAL ASSOCIATION,A+,0162-1459,broad_high_impact,no,统计学顶刊，主题覆盖广,作为高影响力补充组单独跑
+AUTOMATICA,A+,0005-1098,broad_high_impact,no,控制/自动化顶刊，缺机构比例高且主题需筛选,质量报告显示 missing_affiliation_count 较高
+ACADEMY OF MANAGEMENT JOURNAL,A+,0001-4273,default_batch,yes,管理学高相关顶刊,小批量质量良好
+ACADEMY OF MANAGEMENT REVIEW,A+,0363-7425,default_batch,yes,管理学高相关顶刊,小批量质量良好
+ADMINISTRATIVE SCIENCE QUARTERLY,A+,0001-8392,default_batch,yes,组织与管理高相关顶刊,部分记录缺机构但主题相关
+JOURNAL OF INTERNATIONAL BUSINESS STUDIES,A+,0047-2506,default_batch,yes,国际商务与管理相关,部分记录缺机构，批量后需复核
+JOURNAL OF MARKETING,A+,0022-2429,needs_review,no,营销高相关但当前元数据缺机构较多,先复核元数据质量后再进入默认批量
+JOURNAL OF MARKETING RESEARCH,A+,0022-2437,needs_review,no,营销高相关但当前元数据缺机构较多,先复核元数据质量后再进入默认批量
+MANAGEMENT SCIENCE,A+,0025-1909,default_batch,yes,管理科学核心目标期刊,默认批量采集
+MATHEMATICS OF OPERATIONS RESEARCH,A+,0364-765X,default_batch,yes,运筹优化核心期刊,默认批量采集
+MIS QUARTERLY,A+,0276-7783,default_batch,yes,信息系统核心期刊,默认批量采集
+OPERATIONS RESEARCH,A+,0030-364X,default_batch,yes,运筹学核心期刊,默认批量采集
+STRATEGIC MANAGEMENT JOURNAL,A+,0143-2095,default_batch,yes,战略管理高相关期刊,小批量质量可用
+DECISION SUPPORT SYSTEMS,A1,0167-9236,needs_review,no,信息系统相关但缺机构较多,先复核元数据质量后再进入默认批量
+EUROPEAN JOURNAL OF OPERATIONAL RESEARCH,A1,0377-2217,needs_review,no,运筹相关但缺机构较多,先复核元数据质量后再进入默认批量
+IISE TRANSACTIONS,A1,2472-5854,default_batch,yes,工业工程与运筹相关,小批量质量良好
+INFORMATION SYSTEMS RESEARCH,A1,1047-7047,default_batch,yes,信息系统核心期刊,默认批量采集
+INFORMS JOURNAL ON COMPUTING,A1,1091-9856,needs_review,no,计算与运筹相关但缺机构较多,先复核元数据质量后再进入默认批量
+JOURNAL OF OPERATIONS MANAGEMENT,A1,0272-6963,default_batch,yes,运营管理核心期刊,默认批量采集
+JOURNAL OF THE ASSOCIATION FOR INFORMATION SYSTEMS,A1,1536-9323,needs_review,no,信息系统相关但缺机构较多,先复核元数据质量后再进入默认批量
+M&SOM-MANUFACTURING & SERVICE OPERATIONS MANAGEMENT,A1,1523-4614,default_batch,yes,运营管理核心期刊,默认批量采集
+ORGANIZATION SCIENCE,A1,1047-7039,default_batch,yes,组织与管理高相关期刊,默认批量采集
+PRODUCTION AND OPERATIONS MANAGEMENT,A1,1059-1478,needs_review,no,运营管理相关但缺机构较多,先复核元数据质量后再进入默认批量
+TRANSPORTATION RESEARCH PART B-METHODOLOGICAL,A1,0191-2615,default_batch,yes,交通运筹与方法相关,默认批量采集
+TRANSPORTATION SCIENCE,A1,0041-1655,default_batch,yes,交通运筹相关,默认批量采集
+ANNALS OF OPERATIONS RESEARCH,A2,0254-5330,needs_review,no,运筹相关但缺机构较多,先复核元数据质量后再进入默认批量
+INTERNATIONAL JOURNAL OF PRODUCTION ECONOMICS,A2,0925-5273,needs_review,no,生产经济与运营相关但缺机构较多,先复核元数据质量后再进入默认批量
+JOURNAL OF THE OPERATIONAL RESEARCH SOCIETY,A2,0160-5682,default_batch,yes,运筹相关，当前缺机构少,可进入默认批量
+OMEGA-INTERNATIONAL JOURNAL OF MANAGEMENT SCIENCE,A2,0305-0483,default_batch,yes,管理科学相关,可进入默认批量
+RELIABILITY ENGINEERING & SYSTEM SAFETY,A2,0951-8320,needs_review,no,可靠性与系统安全相关但缺机构较多,先复核元数据质量后再进入默认批量
+TRANSPORTATION RESEARCH PART A-POLICY AND PRACTICE,A2,0965-8564,default_batch,yes,交通政策与管理相关,可进入默认批量
+TRANSPORTATION RESEARCH PART C-EMERGING TECHNOLOGIES,A2,0968-090X,default_batch,yes,交通技术与系统相关,可进入默认批量
+TRANSPORTATION RESEARCH PART E-LOGISTICS AND TRANSPORTATION REVIEW,A2,1366-5545,default_batch,yes,物流与供应链相关,可进入默认批量
