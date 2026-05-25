@@ -80,6 +80,11 @@ QUALITY_REPORT_FIELDS = [
     "missing_author_count",
     "missing_affiliation_count",
     "source_errors",
+    "gate_passed",
+    "gate_review_reason",
+    "gate_chinese_candidate_ratio",
+    "gate_missing_author_ratio",
+    "gate_missing_affiliation_ratio",
 ]
 
 
@@ -124,8 +129,9 @@ def export_publication_quality_report_csv(
     candidate_rows: Iterable[dict[str, object]],
     review_issue_rows: Iterable[sqlite3.Row],
     path: str | Path,
+    gate_results: dict[int, object] | None = None,
 ) -> int:
-    report = _publication_quality_report_rows(journals, paper_rows, candidate_rows, review_issue_rows)
+    report = _publication_quality_report_rows(journals, paper_rows, candidate_rows, review_issue_rows, gate_results)
     return _export_rows(report, path, QUALITY_REPORT_FIELDS)
 
 
@@ -184,10 +190,12 @@ def _publication_quality_report_rows(
     paper_rows: Iterable[sqlite3.Row],
     candidate_rows: Iterable[dict[str, object]],
     review_issue_rows: Iterable[sqlite3.Row],
+    gate_results: dict[int, object] | None = None,
 ) -> list[dict[str, object]]:
     by_journal = {
         str(journal["journal_name"]): {
             "journal": journal["journal_name"],
+            "journal_id": journal["id"],
             "achievement_level": journal["achievement_level"],
             "papers_count": 0,
             "openalex_count": 0,
@@ -234,11 +242,33 @@ def _publication_quality_report_rows(
             if normalized and normalized in normalize_publication_name(message):
                 by_journal[journal]["source_errors"] += 1
                 break
-    return [
-        row
-        for row in by_journal.values()
-        if row["papers_count"] or row["candidates_count"] or row["source_errors"]
-    ]
+    report = []
+    for row in by_journal.values():
+        if not (row["papers_count"] or row["candidates_count"] or row["source_errors"]):
+            continue
+        # Merge gate results if available
+        if gate_results:
+            result = gate_results.get(row["journal_id"])
+            if result is not None:
+                row["gate_passed"] = 1 if result.passed else 0
+                row["gate_review_reason"] = result.review_reason
+                row["gate_chinese_candidate_ratio"] = round(result.chinese_candidate_ratio, 4)
+                row["gate_missing_author_ratio"] = round(result.missing_author_ratio, 4)
+                row["gate_missing_affiliation_ratio"] = round(result.missing_affiliation_ratio, 4)
+            else:
+                row["gate_passed"] = 1
+                row["gate_review_reason"] = "not_in_gate_scope"
+                row["gate_chinese_candidate_ratio"] = 0.0
+                row["gate_missing_author_ratio"] = 0.0
+                row["gate_missing_affiliation_ratio"] = 0.0
+        else:
+            row["gate_passed"] = 1
+            row["gate_review_reason"] = "not_checked"
+            row["gate_chinese_candidate_ratio"] = 0.0
+            row["gate_missing_author_ratio"] = 0.0
+            row["gate_missing_affiliation_ratio"] = 0.0
+        report.append(row)
+    return report
 
 
 def _export_rows(rows: Iterable, path: str | Path, fieldnames: list[str]) -> int:
