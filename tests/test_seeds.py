@@ -5,11 +5,11 @@ from faculty_spider_v3.storage import FacultySpiderV3Store
 
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
-V1_TOP200 = WORKSPACE_ROOT / "faculty spiderv1" / "美国前200高校排名.xlsx"
+TOP200_SEEDS = WORKSPACE_ROOT / "brain-bankv2" / "data" / "seeds" / "美国前200高校排名.xlsx"
 
 
 def test_read_top50_school_seeds_from_v1_excel():
-    seeds = read_school_seeds(V1_TOP200, limit=50)
+    seeds = read_school_seeds(TOP200_SEEDS, limit=50)
 
     assert len(seeds) == 50
     assert seeds[0].rank == 1
@@ -19,7 +19,7 @@ def test_read_top50_school_seeds_from_v1_excel():
 
 
 def test_write_and_import_top50_school_seed_csv(tmp_path):
-    seeds = read_school_seeds(V1_TOP200, limit=50)
+    seeds = read_school_seeds(TOP200_SEEDS, limit=50)
     csv_path = tmp_path / "us_top50_schools.csv"
 
     assert write_school_seeds_csv(seeds, csv_path) == 50
