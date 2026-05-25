@@ -921,6 +921,11 @@ class FacultySpiderV3Store:
                 publication_stats = _publication_stats_from_candidate(candidate)
                 paper_links = _split_pipe(str(candidate.get("paper_links", "")))
                 publications = _split_pipe(str(candidate.get("paper_titles", "")))
+                candidate_review_status = str(candidate.get("review_status", "needs_review"))
+                # All publication-only candidates require human review regardless of their
+                # stratification tier. Stratification (strong_candidate/needs_review/rejected)
+                # is a human-review priority hint, not an auto-approval signal.
+                initial_review_status = "needs_review"
                 if existing:
                     conn.execute(
                         """
@@ -935,7 +940,7 @@ class FacultySpiderV3Store:
                             end,
                             is_likely_chinese_name = max(is_likely_chinese_name, ?),
                             review_status = case
-                                when review_status = 'new' then 'needs_review'
+                                when review_status = 'new' then ?
                                 else review_status
                             end,
                             updated_at = current_timestamp
@@ -948,6 +953,7 @@ class FacultySpiderV3Store:
                             float(candidate["chinese_name_score"]),
                             str(candidate["name_filter_reason"]),
                             int(candidate["is_likely_chinese_name"]),
+                            initial_review_status,
                             existing["id"],
                         ),
                     )
@@ -961,7 +967,7 @@ class FacultySpiderV3Store:
                             discipline_score, discipline_is_relevant, discipline_review_status, discipline_reason,
                             confidence_score, review_status)
                         values(?, ?, ?, '', ?, ?, ?, 'publication', ?, 'publication_aggregate', ?, ?, ?,
-                            0, 0, 'needs_review', 'publication_only_candidate_pending_enrichment', ?, 'needs_review')
+                            0, 0, 'needs_review', 'publication_only_candidate_pending_enrichment', ?, ?)
                         """,
                         (
                             str(candidate["name"]),
@@ -975,9 +981,11 @@ class FacultySpiderV3Store:
                             float(candidate["chinese_name_score"]),
                             str(candidate["name_filter_reason"]),
                             _publication_candidate_confidence(candidate),
+                            initial_review_status,
                         ),
                     )
                     inserted += 1
+                _add_publication_candidate_review_issues(conn, candidate, existing["id"] if existing else conn.execute("select last_insert_rowid()").fetchone()[0], paper_links)
             return {"inserted": inserted, "updated": updated}
 
     def people_rows(self) -> list[sqlite3.Row]:
@@ -1265,6 +1273,58 @@ def _publication_candidate_confidence(candidate: dict[str, object]) -> float:
     if float(candidate.get("chinese_name_score") or 0) >= 0.7:
         score += 0.1
     return round(min(score, 0.9), 2)
+
+
+def _add_publication_candidate_review_issues(conn: sqlite3.Connection, candidate: dict[str, object], person_id: int, paper_links: list[str]) -> None:
+    """Add review issues for publication-only candidates based on risk signals."""
+    name = str(candidate.get("name", "")).strip()
+    affiliations = str(candidate.get("affiliations", "")).strip()
+    chinese_name_score = float(candidate.get("chinese_name_score") or 0)
+    is_likely_chinese = int(candidate.get("is_likely_chinese_name") or 0)
+    review_status = str(candidate.get("review_status", "needs_review"))
+
+    source_url = paper_links[0] if paper_links else ""
+
+    if not affiliations:
+        conn.execute(
+            """
+            insert into review_issues(person_id, related_table, related_id, issue_type, severity, message, source_url)
+            values(?, 'people', ?, 'missing_affiliation', 'medium',
+                'Publication-only candidate has no institution affiliation', ?)
+            """,
+            (person_id, person_id, source_url),
+        )
+
+    if is_likely_chinese and chinese_name_score < 0.7:
+        conn.execute(
+            """
+            insert into review_issues(person_id, related_table, related_id, issue_type, severity, message, source_url)
+            values(?, 'people', ?, 'weak_chinese_name_score', 'low',
+                'Chinese-name score in review band; candidate may not be Chinese', ?)
+            """,
+            (person_id, person_id, source_url),
+        )
+
+    if review_status == "needs_review":
+        conn.execute(
+            """
+            insert into review_issues(person_id, related_table, related_id, issue_type, severity, message, source_url)
+            values(?, 'people', ?, 'publication_only_needs_review', 'medium',
+                'Publication-only candidate requires manual review before talent pool use', ?)
+            """,
+            (person_id, person_id, source_url),
+        )
+
+    paper_count = int(candidate.get("last_5_year_total") or 0)
+    if is_likely_chinese and paper_count >= 5 and not affiliations:
+        conn.execute(
+            """
+            insert into review_issues(person_id, related_table, related_id, issue_type, severity, message, source_url)
+            values(?, 'people', ?, 'high_output_no_affiliation', 'high',
+                'High-output author (5+ papers) with no institution affiliation; verify identity', ?)
+            """,
+            (person_id, person_id, source_url),
+        )
 
 
 def _split_pipe(value: str) -> list[str]:
