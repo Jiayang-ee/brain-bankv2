@@ -226,7 +226,90 @@ def test_upsert_publication_people_candidates_creates_publication_only_person(tm
     assert row["primary_source_type"] == "publication"
     assert "Optimization Paper" in row["publications_json"]
     assert "last_5_year_total" in row["publication_stats_json"]
+    # All publication-only candidates enter as needs_review for human audit.
     assert row["review_status"] == "needs_review"
+
+
+def test_upsert_publication_people_candidates_adds_review_issues_for_risk_signals(tmp_path):
+    store = FacultySpiderV3Store(tmp_path / "test.sqlite")
+    store.init_db()
+
+    # Candidate with no affiliation and weak name score should trigger review issues.
+    candidates = [
+        {
+            "name": "Wei Zhang",
+            "affiliations": "",
+            "last_5_year_total": 1,
+            "first_author_total": 0,
+            "corresponding_author_total": 1,
+            "top_total": 0,
+            "a_plus_total": 0,
+            "a_total": 1,
+            "a1_total": 0,
+            "a2_total": 0,
+            "level_counts_json": '{"A": 1}',
+            "paper_links": "https://doi.org/10.2/b",
+            "paper_titles": "Analytics Paper",
+            "journals": "Information Systems Research",
+            "years": "2025",
+            "author_roles": "corresponding_author",
+            "is_likely_chinese_name": 1,
+            "chinese_name_score": 0.45,
+            "name_filter_reason": "chinese_surname",
+            "review_status": "needs_review",
+        }
+    ]
+
+    result = store.upsert_publication_people_candidates(candidates)
+    assert result == {"inserted": 1, "updated": 0}
+
+    issues = store.review_issue_rows()
+    issue_types = {row["issue_type"] for row in issues}
+    assert "missing_affiliation" in issue_types
+    assert "weak_chinese_name_score" in issue_types
+    assert "publication_only_needs_review" in issue_types
+
+
+def test_upsert_publication_people_candidates_high_output_no_affiliation(tmp_path):
+    store = FacultySpiderV3Store(tmp_path / "test.sqlite")
+    store.init_db()
+
+    # High-output author with no affiliation should trigger high-severity issue.
+    candidates = [
+        {
+            "name": "Li Yang",
+            "affiliations": "",
+            "last_5_year_total": 6,
+            "first_author_total": 3,
+            "corresponding_author_total": 2,
+            "top_total": 0,
+            "a_plus_total": 1,
+            "a_total": 3,
+            "a1_total": 1,
+            "a2_total": 1,
+            "level_counts_json": '{"A+": 1, "A": 3, "A1": 1, "A2": 1}',
+            "paper_links": "https://doi.org/10.3/c",
+            "paper_titles": "Supply Chain Paper",
+            "journals": "Transportation Research Part A",
+            "years": "2024",
+            "author_roles": "first_author",
+            "is_likely_chinese_name": 1,
+            "chinese_name_score": 0.85,
+            "name_filter_reason": "chinese_surname",
+            "review_status": "needs_review",
+        }
+    ]
+
+    result = store.upsert_publication_people_candidates(candidates)
+    assert result == {"inserted": 1, "updated": 0}
+
+    issues = store.review_issue_rows()
+    issue_types = {row["issue_type"] for row in issues}
+    assert "missing_affiliation" in issue_types
+    assert "high_output_no_affiliation" in issue_types
+    high_severity = [row for row in issues if row["issue_type"] == "high_output_no_affiliation"]
+    assert len(high_severity) == 1
+    assert high_severity[0]["severity"] == "high"
 
 
 def test_export_publication_quality_report(tmp_path):
