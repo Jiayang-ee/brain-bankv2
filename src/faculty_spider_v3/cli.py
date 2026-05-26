@@ -29,6 +29,7 @@ from .publications.affiliation_backfill import backfill_missing_affiliations
 from .publications.journal_list import read_journals_csv
 from .publications.pipeline import search_publications
 from .review.issues import export_review_issues_csv, export_people_review_csv
+from .enrichment.pipeline import enrich_publication_only_people
 from .storage import FacultySpiderV3Store
 
 
@@ -304,6 +305,20 @@ def review_import_command(args: argparse.Namespace) -> None:
     print(json.dumps({"review_decisions_applied": count}, ensure_ascii=False, indent=2))
 
 
+def enrichment_run_command(args: argparse.Namespace) -> None:
+    """Enrich publication-only people with supplemental fields from Semantic Scholar, DBLP, Crossref, and OpenAlex."""
+    store = _store(args.db)
+    result = enrich_publication_only_people(store, dry_run=args.dry_run, limit=args.limit)
+    print(json.dumps({
+        "persons_processed": result.persons_processed,
+        "persons_updated": result.persons_updated,
+        "fields_written": result.fields_written,
+        "needs_review": result.needs_review,
+        "errors": result.errors,
+        "dry_run": args.dry_run,
+    }, ensure_ascii=False, indent=2))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="faculty-spider-v3")
     parser.add_argument("--db", default=str(DEFAULT_DB), help="SQLite database path")
@@ -434,6 +449,13 @@ def build_parser() -> argparse.ArgumentParser:
     dedupe_people_parser.set_defaults(func=maintenance_dedupe_people_command)
     rescore_discipline_parser = maintenance_subparsers.add_parser("rescore-discipline")
     rescore_discipline_parser.set_defaults(func=maintenance_rescore_discipline_command)
+
+    enrichment_parser = subparsers.add_parser("enrichment")
+    enrichment_subparsers = enrichment_parser.add_subparsers(dest="enrichment_command", required=True)
+    enrichment_run_parser = enrichment_subparsers.add_parser("run")
+    enrichment_run_parser.add_argument("--dry-run", action="store_true", help="Show what would be updated without writing to the database")
+    enrichment_run_parser.add_argument("--limit", type=int, default=None, help="Limit the number of publication-only people to process")
+    enrichment_run_parser.set_defaults(func=enrichment_run_command)
 
     return parser
 
