@@ -5,6 +5,7 @@ from datetime import date
 from html import unescape
 import re
 
+from faculty_spider_v3.discipline.filter import score_paper_discipline_relevance
 from faculty_spider_v3.storage import FacultySpiderV3Store
 from faculty_spider_v3.storage import normalize_text
 
@@ -70,6 +71,7 @@ def search_publications_for_journal(
     current_year: int | None = None,
     openalex: OpenAlexClient | None = None,
     crossref: CrossrefClient | None = None,
+    journal_group: str = "",
 ) -> PublicationSearchResult:
     from_year = from_year or default_from_year(date.today())
     current_year = current_year or date.today().year
@@ -105,13 +107,30 @@ def search_publications_for_journal(
             errors += 1
             error_messages.append(message)
             continue
-        all_papers.extend(
-            [
-                replace(paper, journal=journal["journal_name"])
-                for paper in papers
-                if paper.title and _paper_matches_journal_window(paper, journal["journal_name"], from_year, current_year)
-            ]
-        )
+        for paper in papers:
+            if not paper.title or not _paper_matches_journal_window(paper, journal["journal_name"], from_year, current_year):
+                continue
+            # Apply discipline filtering for broad-impact journals
+            if journal_group == "broad_high_impact":
+                discipline_score = score_paper_discipline_relevance(
+                    title=paper.title,
+                    abstract=paper.abstract,
+                    keywords="",
+                )
+                # Reject papers that don't meet minimum threshold
+                if discipline_score.review_status == "rejected":
+                    store.add_review_issue(
+                        issue_type="broad_journal_discipline_filter",
+                        severity="low",
+                        message=f"Paper filtered by discipline relevance for broad journal {journal['journal_name']}: "
+                        f"title='{paper.title[:80]}...' score={discipline_score.score} status={discipline_score.review_status} "
+                        f"reason={discipline_score.reason}",
+                        source_url=str(paper.paper_url or paper.url or ""),
+                        related_table="papers",
+                        related_id=None,
+                    )
+                    continue
+            all_papers.append(replace(paper, journal=journal["journal_name"]))
 
     return PublicationSearchResult(
         journals_processed=1,
