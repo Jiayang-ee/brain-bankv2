@@ -29,6 +29,12 @@ from .publications.affiliation_backfill import backfill_missing_affiliations
 from .publications.journal_list import read_journals_csv
 from .publications.pipeline import search_publications
 from .review.issues import export_review_issues_csv, export_people_review_csv
+from .review.report import (
+    export_wave1_quality_gap_report,
+    export_wave1_review_queue,
+    generate_run_record,
+    get_git_commit,
+)
 from .enrichment.pipeline import enrich_publication_only_people
 from .storage import FacultySpiderV3Store
 
@@ -305,6 +311,75 @@ def review_import_command(args: argparse.Namespace) -> None:
     print(json.dumps({"review_decisions_applied": count}, ensure_ascii=False, indent=2))
 
 
+def review_wave1_report_command(args: argparse.Namespace) -> None:
+    """Generate Wave 1 review queue and quality gap report.
+
+    Reads from the CSV exports in data/exports/ (the actual data store)
+    so that this command works standalone without a populated SQLite DB.
+    """
+    import csv
+    from datetime import datetime, timezone
+
+    # Load people from the CSV export (source of truth for M7 data)
+    people_csv = Path(__file__).resolve().parents[2] / "data" / "exports" / "people.csv"
+    people_rows = []
+    if people_csv.exists():
+        with people_csv.open(encoding="utf-8-sig") as f:
+            people_rows = list(csv.DictReader(f))
+
+    # Load open issues from the review issues CSV
+    issues_csv = Path(__file__).resolve().parents[2] / "data" / "review" / "issues.csv"
+    open_issues = []
+    if issues_csv.exists():
+        with issues_csv.open(encoding="utf-8-sig") as f:
+            open_issues = [row for row in csv.DictReader(f) if row.get("status") == "open"]
+
+    # Generate run_id if not provided
+    run_id = args.run_id
+    if not run_id:
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        run_id = f"wave1-{ts}"
+
+    # Resolve output paths relative to repo root
+    repo_root = Path(__file__).resolve().parents[2]
+    queue_csv_path = (Path(args.queue_csv) if Path(args.queue_csv).is_absolute()
+                      else repo_root / args.queue_csv)
+    gap_csv_path = (Path(args.gap_csv) if Path(args.gap_csv).is_absolute()
+                    else repo_root / args.gap_csv)
+
+    # Capture git commit and command
+    git_commit = get_git_commit(repo_root)
+    command = f"review wave1-report --queue-csv {args.queue_csv} --gap-csv {args.gap_csv}"
+
+    # Export review queue
+    queue_result = export_wave1_review_queue(people_rows, open_issues, queue_csv_path)
+
+    # Export quality gap report
+    gap_result = export_wave1_quality_gap_report(people_rows, open_issues, gap_csv_path)
+
+    # Generate run record
+    output_dir = repo_root / args.output_dir
+    run_record = generate_run_record(
+        queue_result,
+        gap_result,
+        run_id=run_id,
+        git_commit=git_commit,
+        input_files=[str(people_csv), str(issues_csv)],
+        command=command,
+        output_dir=str(output_dir),
+    )
+
+    print(json.dumps({
+        "run_id": run_id,
+        "git_commit": git_commit,
+        "review_queue": queue_result["review_queue_rows"],
+        "queue_csv": queue_result["review_queue_path"],
+        "quality_gap_categories": gap_result["quality_gap_rows"],
+        "gap_csv": gap_result["quality_gap_path"],
+        "run_record": run_record["run_record_path"],
+    }, ensure_ascii=False, indent=2))
+
+
 def enrichment_run_command(args: argparse.Namespace) -> None:
     """Enrich publication-only people with supplemental fields from Semantic Scholar, DBLP, Crossref, and OpenAlex."""
     store = _store(args.db)
@@ -442,6 +517,29 @@ def build_parser() -> argparse.ArgumentParser:
     review_import_parser = review_subparsers.add_parser("import")
     review_import_parser.add_argument("csv", help="Path to the reviewed people_review.csv with write-back columns")
     review_import_parser.set_defaults(func=review_import_command)
+
+    wave1_report_parser = review_subparsers.add_parser("wave1-report")
+    wave1_report_parser.add_argument(
+        "--queue-csv",
+        default="data/review/wave1_review_queue.csv",
+        help="Output path for the Wave 1 review queue CSV",
+    )
+    wave1_report_parser.add_argument(
+        "--gap-csv",
+        default="data/review/wave1_quality_gap_report.csv",
+        help="Output path for the Wave 1 quality gap summary CSV",
+    )
+    wave1_report_parser.add_argument(
+        "--output-dir",
+        default="data/review",
+        help="Directory for the run record JSON",
+    )
+    wave1_report_parser.add_argument(
+        "--run-id",
+        default="",
+        help="Run identifier; auto-generated if not provided",
+    )
+    wave1_report_parser.set_defaults(func=review_wave1_report_command)
 
     maintenance_parser = subparsers.add_parser("maintenance")
     maintenance_subparsers = maintenance_parser.add_subparsers(dest="maintenance_command", required=True)
