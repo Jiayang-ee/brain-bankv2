@@ -28,7 +28,7 @@ from .publications.batch import create_publication_batch, publication_batch_stat
 from .publications.affiliation_backfill import backfill_missing_affiliations
 from .publications.journal_list import read_journals_csv
 from .publications.pipeline import search_publications
-from .review.issues import export_review_issues_csv
+from .review.issues import export_review_issues_csv, export_people_review_csv
 from .storage import FacultySpiderV3Store
 
 
@@ -263,6 +263,14 @@ def export_review_issues_command(args: argparse.Namespace) -> None:
     print(json.dumps({"review_issues": count, "csv": args.csv}, ensure_ascii=False, indent=2))
 
 
+def export_people_review_command(args: argparse.Namespace) -> None:
+    store = _store(args.db)
+    people = store.people_rows()
+    open_issues = store.review_issue_rows(status="open")
+    count = export_people_review_csv(people, open_issues, args.csv)
+    print(json.dumps({"people_review": count, "csv": args.csv}, ensure_ascii=False, indent=2))
+
+
 def maintenance_dedupe_people_command(args: argparse.Namespace) -> None:
     store = _store(args.db)
     result = store.deduplicate_people_by_canonical_url()
@@ -287,6 +295,13 @@ def maintenance_rescore_discipline_command(args: argparse.Namespace) -> None:
         store.update_person_discipline_score(row["id"], discipline_score)
         counts[discipline_score.review_status] = counts.get(discipline_score.review_status, 0) + 1
     print(json.dumps({"people_scored": len(rows), **counts}, ensure_ascii=False, indent=2))
+
+
+def review_import_command(args: argparse.Namespace) -> None:
+    """Apply review decisions from a people_review CSV write-back file."""
+    store = _store(args.db)
+    count = store.import_review_decisions(args.csv)
+    print(json.dumps({"review_decisions_applied": count}, ensure_ascii=False, indent=2))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -404,6 +419,14 @@ def build_parser() -> argparse.ArgumentParser:
     review_issues_parser.add_argument("--csv", default="data/review/issues.csv")
     review_issues_parser.add_argument("--status", default="")
     review_issues_parser.set_defaults(func=export_review_issues_command)
+
+    people_review_parser = review_subparsers.add_parser("people-review")
+    people_review_parser.add_argument("--csv", default="data/review/people_review.csv")
+    people_review_parser.set_defaults(func=export_people_review_command)
+
+    review_import_parser = review_subparsers.add_parser("import")
+    review_import_parser.add_argument("csv", help="Path to the reviewed people_review.csv with write-back columns")
+    review_import_parser.set_defaults(func=review_import_command)
 
     maintenance_parser = subparsers.add_parser("maintenance")
     maintenance_subparsers = maintenance_parser.add_subparsers(dest="maintenance_command", required=True)
