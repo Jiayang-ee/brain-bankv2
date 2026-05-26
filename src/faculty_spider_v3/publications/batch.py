@@ -115,6 +115,7 @@ def run_publication_batch(
             sources=sources,
             openalex=openalex,
             crossref=crossref,
+            journal_group=str(run["journal_group"]),
         )
         item_status = "failed" if result.errors >= source_count else "completed"
         store.finish_publication_run_item(item["id"], item_status, result.papers_seen, result.papers_saved, result.last_error)

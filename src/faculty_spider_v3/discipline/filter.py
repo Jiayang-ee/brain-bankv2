@@ -224,6 +224,107 @@ def score_discipline_relevance(
     )
 
 
+def score_paper_discipline_relevance(
+    *,
+    title: str = "",
+    abstract: str = "",
+    keywords: str = "",
+    accept_threshold: float = 0.6,
+    review_threshold: float = 0.35,
+) -> DisciplineScore:
+    """
+    Score a paper for discipline relevance based on its title, abstract, and keywords.
+    Used for filtering papers from broad-impact journals (Nature, Science, PNAS, PAMI, JMLR, etc.)
+    where the journal itself is not a reliable indicator of relevance.
+
+    Args:
+        title: Paper title
+        abstract: Paper abstract
+        keywords: Paper keywords (may be comma-separated or space-separated)
+        accept_threshold: Score above this threshold is accepted without review
+        review_threshold: Score above this threshold needs human review
+
+    Returns:
+        DisciplineScore with score, matched disciplines/keywords, and reason
+    """
+    # Build a combined text for keyword matching
+    combined_text = " ".join(filter(None, [title, abstract, keywords]))
+    if not combined_text:
+        return DisciplineScore(
+            score=0.0,
+            is_relevant=False,
+            review_status="rejected",
+            matched_disciplines=[],
+            matched_keywords=[],
+            negative_keywords=[],
+            reason="no_management_science_signal",
+        )
+
+    # Check for negative keywords first (strong rejection signals)
+    normalized_combined = _normalize(combined_text)
+    negative_hits = sorted(_matched_keywords(normalized_combined, NEGATIVE_KEYWORDS))
+
+    matched_disciplines: set[str] = set()
+    matched_keywords: set[str] = set()
+    score = 0.0
+
+    for discipline, discipline_keywords in DISCIPLINE_KEYWORDS.items():
+        hits = _matched_keywords(normalized_combined, discipline_keywords)
+        if hits:
+            matched_disciplines.add(discipline)
+            matched_keywords.update(hits)
+            # Paper scoring uses slightly different weights - title/abstract matter more
+            if discipline_keywords == DISCIPLINE_KEYWORDS["management_science"]:
+                score += 0.40 * min(1.0, 0.55 + 0.15 * len(hits))
+            elif discipline_keywords == DISCIPLINE_KEYWORDS["information_systems"]:
+                score += 0.35 * min(1.0, 0.55 + 0.15 * len(hits))
+            elif discipline_keywords == DISCIPLINE_KEYWORDS["business_management"]:
+                score += 0.30 * min(1.0, 0.55 + 0.15 * len(hits))
+            elif discipline_keywords == DISCIPLINE_KEYWORDS["quantitative_finance_economics"]:
+                score += 0.30 * min(1.0, 0.55 + 0.15 * len(hits))
+            elif discipline_keywords == DISCIPLINE_KEYWORDS["industrial_systems_engineering"]:
+                score += 0.35 * min(1.0, 0.55 + 0.15 * len(hits))
+
+    # Apply negative keyword penalty
+    if negative_hits and not matched_disciplines:
+        score -= 0.35
+    elif negative_hits:
+        score -= 0.15
+
+    # Require at least one positive keyword match for non-zero score
+    if not matched_keywords and score > 0:
+        score = 0.0
+
+    score = round(max(0.0, min(1.0, score)), 2)
+
+    if score >= accept_threshold:
+        review_status = "accepted"
+    elif score >= review_threshold:
+        review_status = "needs_review"
+    else:
+        review_status = "rejected"
+
+    reason_parts = []
+    if matched_disciplines:
+        reason_parts.append("matched_disciplines=" + ",".join(sorted(matched_disciplines)))
+    if matched_keywords:
+        reason_parts.append("matched_keywords=" + ",".join(sorted(matched_keywords)[:12]))
+    if negative_hits:
+        reason_parts.append("negative_keywords=" + ",".join(negative_hits))
+    if not reason_parts:
+        reason_parts.append("no_management_science_signal")
+
+    return DisciplineScore(
+        score=score,
+        is_relevant=score >= accept_threshold,
+        review_status=review_status,
+        matched_disciplines=sorted(matched_disciplines),
+        matched_keywords=sorted(matched_keywords),
+        negative_keywords=negative_hits,
+        reason="; ".join(reason_parts),
+    )
+
+
 def _normalize(text: str) -> str:
     return " ".join(text.casefold().split())
 

@@ -266,6 +266,13 @@ class FacultySpiderV3Store:
             self._add_column_if_missing(conn, "people", "discipline_matched_keywords_json", "text default '[]'")
             self._add_column_if_missing(conn, "people", "discipline_negative_keywords_json", "text default '[]'")
             self._add_column_if_missing(conn, "people", "discipline_reason", "text default ''")
+            # P5: enrichment source tracking fields
+            self._add_column_if_missing(conn, "people", "homepage_source", "text default ''")
+            self._add_column_if_missing(conn, "people", "title_source", "text default ''")
+            self._add_column_if_missing(conn, "people", "department_source", "text default ''")
+            self._add_column_if_missing(conn, "people", "email_source", "text default ''")
+            self._add_column_if_missing(conn, "people", "school_source", "text default ''")
+            self._add_column_if_missing(conn, "people", "enrichment_confidence", "real default 0.0")
 
     @staticmethod
     def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
