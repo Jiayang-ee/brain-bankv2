@@ -1136,6 +1136,50 @@ class FacultySpiderV3Store:
                 ),
             )
 
+    def update_person_review_status(self, person_id: int, review_status: str, resolved_issue_types: list[str] | None = None) -> None:
+        """Update a person's review_status and optionally resolve matching open review issues."""
+        with self.connect() as conn:
+            conn.execute(
+                "update people set review_status = ?, updated_at = current_timestamp where id = ?",
+                (review_status, person_id),
+            )
+            if resolved_issue_types:
+                placeholders = ",".join("?" * len(resolved_issue_types))
+                conn.execute(
+                    f"update review_issues set status = 'resolved', resolved_at = current_timestamp "
+                    f"where person_id = ? and status = 'open' and issue_type in ({placeholders})",
+                    [person_id] + resolved_issue_types,
+                )
+
+    def import_review_decisions(self, csv_path: str | Path) -> int:
+        """
+        Apply review decisions written back from people_review.csv.
+
+        Expected columns: person_id, review_status, resolved_issue_types (pipe-separated).
+
+        Returns the number of decisions applied.
+        """
+        import csv as _csv
+
+        path = Path(csv_path)
+        if not path.exists():
+            raise FileNotFoundError(f"CSV not found: {csv_path}")
+
+        applied = 0
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = _csv.DictReader(handle)
+            for row in reader:
+                pid = int(row["person_id"])
+                new_status = row.get("review_status", "").strip()
+                resolved_raw = row.get("resolved_issue_types", "").strip()
+                resolved_types = resolved_raw.split(" | ") if resolved_raw else []
+
+                if new_status:
+                    self.update_person_review_status(pid, new_status, resolved_types or None)
+                    applied += 1
+
+        return applied
+
     def page_audit_rows(self) -> list[sqlite3.Row]:
         with self.connect() as conn:
             return list(
