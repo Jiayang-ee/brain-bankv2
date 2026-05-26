@@ -273,6 +273,9 @@ class FacultySpiderV3Store:
             self._add_column_if_missing(conn, "people", "email_source", "text default ''")
             self._add_column_if_missing(conn, "people", "school_source", "text default ''")
             self._add_column_if_missing(conn, "people", "enrichment_confidence", "real default 0.0")
+            # FUN-33: review decision write-back fields
+            self._add_column_if_missing(conn, "people", "review_decision", "text default ''")
+            self._add_column_if_missing(conn, "people", "review_decision_note", "text default ''")
 
     @staticmethod
     def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -1006,7 +1009,8 @@ class FacultySpiderV3Store:
                         education, advisor, confidence_score, review_status, is_likely_chinese_name,
                         chinese_name_score, name_filter_reason, discipline_score, discipline_is_relevant,
                         discipline_review_status, discipline_matched_disciplines_json, discipline_matched_keywords_json,
-                        discipline_negative_keywords_json, discipline_reason, created_at, updated_at
+                        discipline_negative_keywords_json, discipline_reason, review_decision, review_decision_note,
+                        created_at, updated_at
                     from people
                     order by school, name, id
                     """
@@ -1235,12 +1239,31 @@ class FacultySpiderV3Store:
         with self.connect() as conn:
             conn.execute(f"update people set {', '.join(assignments)} where id = ?", params)
 
-    def update_person_review_status(self, person_id: int, review_status: str, resolved_issue_types: list[str] | None = None) -> None:
+    def update_person_review_status(
+        self,
+        person_id: int,
+        review_status: str | None = None,
+        resolved_issue_types: list[str] | None = None,
+        review_decision: str | None = None,
+        review_decision_note: str | None = None,
+    ) -> None:
         """Update a person's review_status and optionally resolve matching open review issues."""
         with self.connect() as conn:
+            updates = ["updated_at = current_timestamp"]
+            params: list = []
+            if review_status is not None:
+                updates.append("review_status = ?")
+                params.append(review_status)
+            if review_decision is not None:
+                updates.append("review_decision = ?")
+                params.append(review_decision)
+            if review_decision_note is not None:
+                updates.append("review_decision_note = ?")
+                params.append(review_decision_note)
+            params.append(person_id)
             conn.execute(
-                "update people set review_status = ?, updated_at = current_timestamp where id = ?",
-                (review_status, person_id),
+                f"update people set {', '.join(updates)} where id = ?",
+                params,
             )
             if resolved_issue_types:
                 placeholders = ",".join("?" * len(resolved_issue_types))
@@ -1254,7 +1277,12 @@ class FacultySpiderV3Store:
         """
         Apply review decisions written back from people_review.csv.
 
-        Expected columns: person_id, review_status, resolved_issue_types (pipe-separated).
+        Expected columns: person_id, review_decision, review_decision_note,
+        resolved_issue_types (pipe-separated).
+
+        Only rows where at least one of review_decision, review_decision_note,
+        or resolved_issue_types is non-empty are applied. This makes re-importing
+        a previously exported file a no-op (idempotent).
 
         Returns the number of decisions applied.
         """
@@ -1269,13 +1297,24 @@ class FacultySpiderV3Store:
             reader = _csv.DictReader(handle)
             for row in reader:
                 pid = int(row["person_id"])
-                new_status = row.get("review_status", "").strip()
+                decision = row.get("review_decision", "").strip()
+                decision_note = row.get("review_decision_note", "").strip()
                 resolved_raw = row.get("resolved_issue_types", "").strip()
                 resolved_types = resolved_raw.split(" | ") if resolved_raw else []
 
-                if new_status:
-                    self.update_person_review_status(pid, new_status, resolved_types or None)
-                    applied += 1
+                # Only apply if reviewer explicitly filled in at least one field
+                if not decision and not decision_note and not resolved_types:
+                    continue
+
+                # review_decision becomes the person's new review_status
+                self.update_person_review_status(
+                    pid,
+                    review_status=decision or None,
+                    resolved_issue_types=resolved_types or None,
+                    review_decision=decision or None,
+                    review_decision_note=decision_note or None,
+                )
+                applied += 1
 
         return applied
 

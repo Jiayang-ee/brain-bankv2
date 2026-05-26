@@ -51,6 +51,10 @@ PEOPLE_REVIEW_FIELDS = [
     "open_issue_types",
     "open_issue_messages",
     "open_issue_source_urls",
+    # write-back fields (empty on export, filled by human reviewer)
+    "review_decision",
+    "review_decision_note",
+    "resolved_issue_types",
     "created_at",
     "updated_at",
 ]
@@ -141,6 +145,10 @@ def export_people_review_csv(
                 "open_issue_types": " | ".join(_uniq(bucket.get("issue_types", []))),
                 "open_issue_messages": " || ".join(_uniq(bucket.get("messages", []))),
                 "open_issue_source_urls": " | ".join(_uniq(bucket.get("source_urls", []))),
+                # write-back fields: read existing decision (for history visibility), leave resolved blank
+                "review_decision": person_dict.get("review_decision", ""),
+                "review_decision_note": person_dict.get("review_decision_note", ""),
+                "resolved_issue_types": "",
                 "created_at": person_dict.get("created_at", ""),
                 "updated_at": person_dict.get("updated_at", ""),
             }
