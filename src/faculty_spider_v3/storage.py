@@ -1143,6 +1143,98 @@ class FacultySpiderV3Store:
                 ),
             )
 
+    def get_person(self, person_id: int) -> sqlite3.Row | None:
+        """Fetch a single person row by id, including enrichment source fields."""
+        with self.connect() as conn:
+            return conn.execute(
+                """
+                select id, name, age, career_stage, email, school, department, field, research_direction, title,
+                    primary_source_url as source_url, primary_source_type, personal_homepage, research_interests,
+                    biography, publications_json, publication_stats_json, paper_links_json, photo_url, photo_path,
+                    education, advisor, confidence_score, review_status, is_likely_chinese_name,
+                    chinese_name_score, name_filter_reason, discipline_score, discipline_is_relevant,
+                    discipline_review_status, discipline_matched_disciplines_json, discipline_matched_keywords_json,
+                    discipline_negative_keywords_json, discipline_reason, created_at, updated_at,
+                    homepage_source, title_source, department_source, email_source, school_source,
+                    enrichment_confidence
+                from people
+                where id = ?
+                """,
+                (person_id,),
+            ).fetchone()
+
+    def list_publication_only_people(self, limit: int | None = None) -> list[sqlite3.Row]:
+        """Fetch people whose primary_source_type = 'publication', ordered by id."""
+        query = """
+            select id, name, age, career_stage, email, school, department, field, research_direction, title,
+                primary_source_url as source_url, primary_source_type, personal_homepage, research_interests,
+                biography, publications_json, publication_stats_json, paper_links_json, photo_url, photo_path,
+                education, advisor, confidence_score, review_status, is_likely_chinese_name,
+                chinese_name_score, name_filter_reason, discipline_score, discipline_is_relevant,
+                discipline_review_status, discipline_matched_disciplines_json, discipline_matched_keywords_json,
+                discipline_negative_keywords_json, discipline_reason, created_at, updated_at,
+                homepage_source, title_source, department_source, email_source, school_source,
+                enrichment_confidence
+            from people
+            where primary_source_type = 'publication'
+            order by id
+        """
+        params: list[object] = []
+        if limit is not None:
+            query += " limit ?"
+            params.append(limit)
+        with self.connect() as conn:
+            return list(conn.execute(query, params))
+
+    def apply_enrichment_updates(self, person_id: int, updates: Iterable[dict], requires_review: bool) -> None:
+        """Apply field updates from enrichment with source tracking.
+
+        ``updates`` must be an iterable of dicts each containing:
+            field, new_value, source, confidence, requires_review
+        After writing the field values and sources, also writes
+        enrichment_confidence = max of all update confidences and sets
+        review_status to 'needs_review' if requires_review is True.
+        """
+        from .enrichment import FieldUpdate
+
+        assignments: list[str] = []
+        params: list[object] = []
+        confidence_values: list[float] = []
+
+        for u in updates:
+            if not isinstance(u, FieldUpdate):
+                u = FieldUpdate(**u)
+            col = _enrichment_field_column(u.field)
+            if col:
+                assignments.append(f"{col} = ?")
+                params.append(u.new_value)
+                src_col = _enrichment_source_column(u.field)
+                if src_col:
+                    assignments.append(f"{src_col} = ?")
+                    params.append(u.source)
+                confidence_values.append(u.confidence)
+
+        # Track max enrichment confidence (only if there are field updates)
+        if confidence_values:
+            assignments.append("enrichment_confidence = max(enrichment_confidence, ?)")
+            max_conf = max(confidence_values)
+            params.append(max_conf)
+
+        if requires_review:
+            assignments.append("review_status = 'needs_review'")
+
+        assignments.append("updated_at = current_timestamp")
+        params.append(person_id)
+
+        if not assignments:
+            return
+
+        if not assignments:
+            return
+
+        with self.connect() as conn:
+            conn.execute(f"update people set {', '.join(assignments)} where id = ?", params)
+
     def update_person_review_status(self, person_id: int, review_status: str, resolved_issue_types: list[str] | None = None) -> None:
         """Update a person's review_status and optionally resolve matching open review issues."""
         with self.connect() as conn:
@@ -1273,6 +1365,30 @@ def _json_list(value: str) -> list:
     except json.JSONDecodeError:
         return []
     return loaded if isinstance(loaded, list) else []
+
+
+def _enrichment_field_column(field: str) -> str | None:
+    """Map an enrichment field name to the corresponding people table column."""
+    mapping = {
+        "homepage": "personal_homepage",
+        "title": "title",
+        "department": "department",
+        "email": "email",
+        "school": "school",
+    }
+    return mapping.get(field)
+
+
+def _enrichment_source_column(field: str) -> str | None:
+    """Map an enrichment field name to the corresponding _source column."""
+    mapping = {
+        "homepage": "homepage_source",
+        "title": "title_source",
+        "department": "department_source",
+        "email": "email_source",
+        "school": "school_source",
+    }
+    return mapping.get(field)
 
 
 def _paper_candidate_row(paper: sqlite3.Row, name: str, author_role: str) -> dict[str, object]:
