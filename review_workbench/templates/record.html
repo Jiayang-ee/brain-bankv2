@@ -44,6 +44,16 @@
           {% else %}<span class="text-muted">—</span>{% endif %}
         </dd>
         <dt>source_type</dt><dd>{{ record.primary_source_type or '—' }}</dd>
+        {% if record.paper_links %}
+        <dt>paper_links</dt>
+        <dd>
+          {% for link in record.paper_links.split('|')[:5] %}
+            {% if link|trim %}
+              <a href="{{ link|trim }}" target="_blank" rel="noopener" style="margin-right:0.5rem;">论文</a>
+            {% endif %}
+          {% endfor %}
+        </dd>
+        {% endif %}
       </dl>
     </div>
 

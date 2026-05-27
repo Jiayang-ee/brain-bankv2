@@ -10,7 +10,7 @@
     <option value="">全部决策</option>
     <option value="undecided" {% if filter_decision=='undecided' %}selected{% endif %}>未决策</option>
     <option value="needs_review" {% if filter_decision=='needs_review' %}selected{% endif %}>需复核</option>
-    <option value="approved/accepted" {% if filter_decision=='approved/accepted' %}selected{% endif %}>已批准</option>
+    <option value="accepted" {% if filter_decision=='accepted' %}selected{% endif %}>已批准</option>
     <option value="rejected" {% if filter_decision=='rejected' %}selected{% endif %}>已拒绝</option>
   </select>
   <select name="gap" onchange="this.form.submit()">

@@ -33,8 +33,8 @@ ISSUES_CSV = REPO_ROOT / "data" / "review" / "issues.csv"
 EXPORTS_PEOPLE_CSV = REPO_ROOT / "data" / "exports" / "people.csv"
 RUN_RECORD_JSON = REPO_ROOT / "data" / "review" / "wave1_run_record.json"
 
-# Review decision enumeration
-VALID_DECISIONS = ["approved/accepted", "rejected", "needs_review", ""]
+# Review decision enumeration (backend contract: accepted, rejected, needs_review, or empty; approved is aliased to accepted by import_review_decisions)
+VALID_DECISIONS = ["accepted", "rejected", "needs_review", ""]
 
 # Fields we allow reviewers to edit
 EDITABLE_FIELDS = ["review_decision", "review_decision_note", "resolved_issue_types"]
@@ -118,8 +118,12 @@ def _regenerate_quality_gap() -> list[dict]:
             timeout=60,
             env={**__import__("os").environ, "PYTHONPATH": str(REPO_ROOT / "src")},
         )
-    except Exception as e:
-        return _load_quality_gaps()
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"wave1-report failed (exit {result.returncode}): {result.stderr[:500]}"
+            )
+    except Exception:
+        raise
     return _load_quality_gap_report_from_csv()
 
 
@@ -149,8 +153,8 @@ def _compute_stats(rows: list[dict]) -> dict:
 
     for r in rows:
         d = (r.get("review_decision") or "").strip().lower()
-        if d in ("approved/accepted", "accepted", "approved"):
-            by_decision["approved/accepted"] = by_decision.get("approved/accepted", 0) + 1
+        if d in ("accepted", "approved", "approved/accepted"):
+            by_decision["accepted"] = by_decision.get("accepted", 0) + 1
         elif d == "rejected":
             by_decision["rejected"] = by_decision.get("rejected", 0) + 1
         elif d == "needs_review":
@@ -222,13 +226,16 @@ def list_queue():
             rows = [r for r in rows if not (r.get("review_decision") or "").strip()]
         elif filter_decision == "needs_review":
             rows = [r for r in rows if (r.get("review_decision") or "").strip().lower() == "needs_review"]
-        elif filter_decision == "approved/accepted":
-            rows = [r for r in rows if (r.get("review_decision") or "").strip().lower() in ("approved/accepted", "accepted", "approved")]
+        elif filter_decision == "accepted":
+            rows = [r for r in rows if (r.get("review_decision") or "").strip().lower() in ("accepted", "approved", "approved/accepted")]
         elif filter_decision == "rejected":
             rows = [r for r in rows if (r.get("review_decision") or "").strip().lower() == "rejected"]
 
     if filter_gap:
-        rows = [r for r in rows if r.get(f"gap_{filter_gap}") == "1"]
+        if filter_gap == "missing_homepage_email":
+            rows = [r for r in rows if r.get("gap_missing_homepage") == "1" or r.get("gap_missing_email") == "1"]
+        else:
+            rows = [r for r in rows if r.get(f"gap_{filter_gap}") == "1"]
 
     if filter_tier:
         rows = [r for r in rows if (r.get("priority_tier") or "").lower() == filter_tier.lower()]
@@ -243,10 +250,22 @@ def list_queue():
             or term in (r.get("email") or "").casefold()
         ]
 
-    # Sort
+    # Sort (numeric fields sorted as numbers)
     reverse = sort_dir == "desc"
+    numeric_fields = {"priority_score", "confidence_score", "discipline_score",
+                      "pub_last_5_year_total", "pub_a_plus_total", "pub_a_total",
+                      "pub_a1_total", "pub_a2_total", "pub_top_total",
+                      "pub_first_author_total", "pub_corresponding_author_total"}
     if sort_by in QUEUE_FIELDS:
-        rows.sort(key=lambda r: (r.get(sort_by) or ""), reverse=reverse)
+        def sort_key(r):
+            val = r.get(sort_by) or ""
+            if sort_by in numeric_fields:
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return 0
+            return val
+        rows.sort(key=sort_key, reverse=reverse)
 
     total = len(_load_queue())
     filtered = len(rows)
@@ -300,8 +319,8 @@ def record_edit(person_id: int):
         note = (request.form.get("review_decision_note") or "").strip()
         resolved = (request.form.get("resolved_issue_types") or "").strip()
 
-        # Validate decision enum
-        if decision and decision not in ["approved/accepted", "rejected", "needs_review"]:
+        # Validate decision enum (backend contract: accepted/rejected/needs_review/empty; approved aliased to accepted on import)
+        if decision and decision not in ["accepted", "rejected", "needs_review"]:
             return jsonify({"error": f"非法决策值: {decision}"}), 400
 
         # Update the record in memory

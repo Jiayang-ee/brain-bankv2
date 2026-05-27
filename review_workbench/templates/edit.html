@@ -34,12 +34,12 @@
       <label for="review_decision">复核决策 *</label>
       <select id="review_decision" name="review_decision">
         <option value="">— 未决策 —</option>
-        <option value="approved/accepted" {% if record.review_decision and 'accept' in record.review_decision|lower %}selected{% endif %}>approved/accepted</option>
+        <option value="accepted" {% if record.review_decision and 'accept' in record.review_decision|lower %}selected{% endif %}>accepted</option>
         <option value="rejected" {% if record.review_decision and record.review_decision|lower == 'rejected' %}selected{% endif %}>rejected</option>
         <option value="needs_review" {% if record.review_decision and record.review_decision|lower == 'needs_review' %}selected{% endif %}>needs_review</option>
       </select>
       <div class="text-muted" style="font-size:0.75rem;margin-top:0.25rem;">
-        approved/accepted = 进入 confirmed roster；rejected = 进入 rejected roster；needs_review = 暂缓；空 = 未决策
+        accepted = 进入 confirmed roster；rejected = 进入 rejected roster；needs_review = 暂缓；空 = 未决策（approved 值会被后端自动映射为 accepted）
       </div>
     </div>
 
