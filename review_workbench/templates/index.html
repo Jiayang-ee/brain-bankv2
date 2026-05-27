@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}M10 质量看板 - 复核工作台{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:1.25rem;">M10 质量看板</h1>
+
+<div class="stats-grid" style="margin-bottom:1.5rem;">
+  <div class="stat-box">
+    <div class="num">{{ stats.total }}</div>
+    <div class="label">总记录数</div>
+  </div>
+  <div class="stat-box low">
+    <div class="num">{{ stats.by_decision.get('accepted', 0) }}</div>
+    <div class="label">已批准</div>
+  </div>
+  <div class="stat-box high">
+    <div class="num">{{ stats.by_decision.get('rejected', 0) }}</div>
+    <div class="label">已拒绝</div>
+  </div>
+  <div class="stat-box medium">
+    <div class="num">{{ stats.by_decision.get('needs_review', 0) }}</div>
+    <div class="label">需复核</div>
+  </div>
+  <div class="stat-box">
+    <div class="num" style="color:#757575;">{{ stats.by_decision.get('未决策', 0) }}</div>
+    <div class="label">未决策</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div>
+    <div class="card">
+      <h3>质量问题分布</h3>
+      <div class="gap-item">
+        <span class="gap-count" style="color:#c62828;">{{ stats.by_gap.missing_school }}</span>
+        <span class="gap-label">机构缺失</span>
+        <span class="gap-sev badge-high">高</span>
+      </div>
+      <div class="gap-item">
+        <span class="gap-count" style="color:#e65100;">{{ stats.by_gap.missing_homepage_email }}</span>
+        <span class="gap-label">homepage/email 缺失</span>
+        <span class="gap-sev badge-medium">中</span>
+      </div>
+      <div class="gap-item">
+        <span class="gap-count" style="color:#e65100;">{{ stats.by_gap.low_confidence }}</span>
+        <span class="gap-label">低置信度</span>
+        <span class="gap-sev badge-medium">中</span>
+      </div>
+      <div class="gap-item">
+        <span class="gap-count" style="color:#c62828;">{{ stats.by_gap.name_conflict }}</span>
+        <span class="gap-label">同名冲突</span>
+        <span class="gap-sev badge-high">高</span>
+      </div>
+      <div class="gap-item">
+        <span class="gap-count" style="color:#e65100;">{{ stats.by_gap.discipline_uncertain }}</span>
+        <span class="gap-label">学科不确定</span>
+        <span class="gap-sev badge-medium">中</span>
+      </div>
+      <div class="gap-item">
+        <span class="gap-count" style="color:#e65100;">{{ stats.by_gap.source_errors }}</span>
+        <span class="gap-label">数据质量问题</span>
+        <span class="gap-sev badge-medium">中</span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <h3>质量差距报告摘要</h3>
+      {% for g in quality_gaps %}
+        {% if g.gap_category != 'abstract_missing' %}
+        <div class="gap-item">
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.25rem;">
+            <span class="gap-label">{{ g.gap_category_label }}</span>
+            <span class="gap-sev badge-{{ g.severity }}" style="background:{{ '#ffebee' if g.severity=='high' else '#fff3e0' if g.severity=='medium' else '#e8f5e9' }};color:{{ '#c62828' if g.severity=='high' else '#e65100' if g.severity=='medium' else '#2e7d32' }};">{{ g.severity }}</span>
+            <strong style="margin-left:auto;">{{ g.count }}</strong>
+          </div>
+          <div class="gap-example">{{ g.recommendation }}</div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    <div class="card">
+      <h3>复核列表入口</h3>
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+        <a href="{{ url_for('list_queue', decision='undecided') }}" class="btn btn-primary">未决策</a>
+        <a href="{{ url_for('list_queue', decision='needs_review') }}" class="btn btn-secondary">需复核</a>
+        <a href="{{ url_for('list_queue', gap='missing_school') }}" class="btn btn-secondary">机构缺失</a>
+        <a href="{{ url_for('list_queue', gap='low_confidence') }}" class="btn btn-secondary">低置信度</a>
+        <a href="{{ url_for('list_queue', gap='discipline_uncertain') }}" class="btn btn-secondary">学科不确定</a>
+        <a href="{{ url_for('list_queue') }}" class="btn btn-secondary">全部列表</a>
+      </div>
+    </div>
+
+    {% if issues %}
+    <div class="card">
+      <h3>最近 open issues（限显示50条）</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>issue_type</th>
+            <th>severity</th>
+            <th>message</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for issue in issues[:20] %}
+          <tr>
+            <td><code>{{ issue.issue_type }}</code></td>
+            <td><span class="badge badge-{{ issue.severity }}">{{ issue.severity }}</span></td>
+            <td class="text-muted" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ issue.message }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
