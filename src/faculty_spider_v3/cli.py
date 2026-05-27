@@ -30,6 +30,7 @@ from .publications.journal_list import read_journals_csv
 from .publications.pipeline import search_publications
 from .review.issues import export_review_issues_csv, export_people_review_csv
 from .review.report import (
+    export_review_roster,
     export_wave1_quality_gap_report,
     export_wave1_review_queue,
     generate_run_record,
@@ -304,6 +305,37 @@ def maintenance_rescore_discipline_command(args: argparse.Namespace) -> None:
     print(json.dumps({"people_scored": len(rows), **counts}, ensure_ascii=False, indent=2))
 
 
+def review_roster_command(args: argparse.Namespace) -> None:
+    """Export confirmed / deferred / rejected rosters from people_review CSV."""
+    import csv
+
+    # Load people from CSV export
+    people_csv = Path(__file__).resolve().parents[2] / "data" / "exports" / "people.csv"
+    people_rows = []
+    if people_csv.exists():
+        with people_csv.open(encoding="utf-8-sig") as f:
+            people_rows = list(csv.DictReader(f))
+
+    # Load all review issues
+    issues_csv = Path(__file__).resolve().parents[2] / "data" / "review" / "issues.csv"
+    review_issue_rows = []
+    if issues_csv.exists():
+        with issues_csv.open(encoding="utf-8-sig") as f:
+            review_issue_rows = list(csv.DictReader(f))
+
+    output_dir = Path(__file__).resolve().parents[2] / args.output_dir
+    batch_name = args.batch_name
+
+    roster_result = export_review_roster(
+        people_rows, review_issue_rows, output_dir, batch_name
+    )
+
+    print(json.dumps({
+        "batch_name": batch_name,
+        "rosters": roster_result,
+    }, ensure_ascii=False, indent=2))
+
+
 def review_import_command(args: argparse.Namespace) -> None:
     """Apply review decisions from a people_review CSV write-back file."""
     store = _store(args.db)
@@ -540,6 +572,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run identifier; auto-generated if not provided",
     )
     wave1_report_parser.set_defaults(func=review_wave1_report_command)
+
+    roster_parser = review_subparsers.add_parser("roster")
+    roster_parser.add_argument(
+        "--batch-name",
+        default="wave1",
+        help="Batch name prefix for output files (default: wave1)",
+    )
+    roster_parser.add_argument(
+        "--output-dir",
+        default="data/review",
+        help="Directory for roster CSV files (default: data/review)",
+    )
+    roster_parser.set_defaults(func=review_roster_command)
 
     maintenance_parser = subparsers.add_parser("maintenance")
     maintenance_subparsers = maintenance_parser.add_subparsers(dest="maintenance_command", required=True)
