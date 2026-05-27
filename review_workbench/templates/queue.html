@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}复核列表 - M10 复核工作台{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:1rem;">复核列表</h1>
+<p class="text-muted" style="margin-bottom:1rem;">共 {{ total }} 条记录，已筛选 {{ filtered }} 条</p>
+
+<form method="get" class="filters">
+  <span class="filter-label">筛选：</span>
+  <select name="decision" onchange="this.form.submit()">
+    <option value="">全部决策</option>
+    <option value="undecided" {% if filter_decision=='undecided' %}selected{% endif %}>未决策</option>
+    <option value="needs_review" {% if filter_decision=='needs_review' %}selected{% endif %}>需复核</option>
+    <option value="approved/accepted" {% if filter_decision=='approved/accepted' %}selected{% endif %}>已批准</option>
+    <option value="rejected" {% if filter_decision=='rejected' %}selected{% endif %}>已拒绝</option>
+  </select>
+  <select name="gap" onchange="this.form.submit()">
+    <option value="">质量问题</option>
+    <option value="missing_school" {% if filter_gap=='missing_school' %}selected{% endif %}>机构缺失</option>
+    <option value="missing_homepage_email" {% if filter_gap=='missing_homepage_email' %}selected{% endif %}>homepage/email缺失</option>
+    <option value="low_confidence" {% if filter_gap=='low_confidence' %}selected{% endif %}>低置信度</option>
+    <option value="name_conflict" {% if filter_gap=='name_conflict' %}selected{% endif %}>同名冲突</option>
+    <option value="discipline_uncertain" {% if filter_gap=='discipline_uncertain' %}selected{% endif %}>学科不确定</option>
+  </select>
+  <select name="tier" onchange="this.form.submit()">
+    <option value="">优先级</option>
+    <option value="high" {% if filter_tier=='high' %}selected{% endif %}>高</option>
+    <option value="medium" {% if filter_tier=='medium' %}selected{% endif %}>中</option>
+    <option value="low" {% if filter_tier=='low' %}selected{% endif %}>低</option>
+    <option value="deferred" {% if filter_tier=='deferred' %}selected{% endif %}>延后</option>
+  </select>
+  <input type="text" name="search" value="{{ search }}" placeholder="搜索姓名/机构/邮箱">
+  <button type="submit" class="btn btn-secondary">搜索</button>
+  <a href="{{ url_for('list_queue') }}" class="btn btn-secondary">重置</a>
+</form>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>优先级</th>
+        <th>姓名</th>
+        <th>机构 / 院系</th>
+        <th>title</th>
+        <th>email</th>
+        <th>homepage</th>
+        <th>source</th>
+        <th>置信度</th>
+        <th>gap</th>
+        <th>decision</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>
+          <span class="badge badge-{% if r.priority_tier=='high' %}high{% elif r.priority_tier=='medium' %}medium{% elif r.priority_tier=='low' %}low{% else %}new{% endif %}">
+            {{ r.priority_tier or '?' }}
+          </span>
+          <span class="text-muted" style="font-size:0.7rem;">{{ r.priority_score }}</span>
+        </td>
+        <td><a href="{{ url_for('record_view', person_id=r.person_id) }}">{{ r.name or '?' }}</a></td>
+        <td>
+          <div>{{ r.school or '?' }}</div>
+          <div class="text-muted" style="font-size:0.75rem;">{{ r.department or '' }}</div>
+        </td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ r.title }}">{{ r.title or '?' }}</td>
+        <td>
+          {% if r.email %}
+            <a href="mailto:{{ r.email }}">{{ r.email }}</a>
+          {% else %}
+            <span class="text-muted">缺失</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if r.personal_homepage %}
+            <a href="{{ r.personal_homepage }}" target="_blank" rel="noopener">查看</a>
+          {% else %}
+            <span class="text-muted">缺失</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if r.source_url %}
+            <a href="{{ r.source_url }}" target="_blank" rel="noopener">来源</a>
+          {% endif %}
+        </td>
+        <td>
+          {% if r.confidence_score %}<span style="color:{{ '#c62828' if (r.confidence_score|float) < 0.6 else '#2e7d32' }}">{{ r.confidence_score }}</span>{% else %}?{% endif %}
+        </td>
+        <td>
+          {% if r.gap_missing_school == '1' %}<span class="badge badge-high" title="机构缺失">机构</span>{% endif %}
+          {% if r.gap_missing_homepage == '1' or r.gap_missing_email == '1' %}<span class="badge badge-medium" title="contact缺失">contact</span>{% endif %}
+          {% if r.gap_low_confidence == '1' %}<span class="badge badge-medium" title="低置信度">低conf</span>{% endif %}
+          {% if r.gap_name_conflict == '1' %}<span class="badge badge-high" title="同名冲突">同名</span>{% endif %}
+          {% if r.gap_discipline_uncertain == '1' %}<span class="badge badge-medium" title="学科不确定">学科</span>{% endif %}
+          {% if r.gap_high_output_no_affiliation == '1' %}<span class="badge badge-high" title="高产出无机构">高产出</span>{% endif %}
+        </td>
+        <td>
+          {% set d = (r.review_decision or '')|trim|lower %}
+          {% if d in ['approved/accepted','accepted','approved'] %}
+            <span class="badge badge-accepted">已批准</span>
+          {% elif d == 'rejected' %}
+            <span class="badge badge-rejected">已拒绝</span>
+          {% elif d == 'needs_review' %}
+            <span class="badge badge-needs_review">需复核</span>
+          {% else %}
+            <span class="badge badge-undecided">未决策</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('record_view', person_id=r.person_id) }}" class="btn btn-secondary" style="padding:0.25rem 0.5rem;font-size:0.75rem;">查看</a>
+          <a href="{{ url_for('record_edit', person_id=r.person_id) }}" class="btn btn-primary" style="padding:0.25rem 0.5rem;font-size:0.75rem;">编辑</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

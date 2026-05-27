@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}编辑 - {{ record.name }}{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+  <a href="{{ url_for('record_view', person_id=record.person_id) }}" class="btn btn-secondary" style="font-size:0.8rem;">← 返回</a>
+  <h1 style="margin:0;font-size:1.25rem;">编辑复核决策：{{ record.name }}</h1>
+</div>
+
+<form method="post">
+  <div class="card" style="max-width:600px;">
+    <h3>复核信息</h3>
+    <dl class="info-grid" style="margin-bottom:1.25rem;">
+      <dt>person_id</dt><dd>{{ record.person_id }}</dd>
+      <dt>机构</dt><dd>{{ record.school or '—' }}</dd>
+      <dt>院系</dt><dd>{{ record.department or '—' }}</dd>
+      <dt>title</dt><dd>{{ record.title or '—' }}</dd>
+      <dt>email</dt><dd>{{ record.email or '—' }}</dd>
+      <dt>置信度</dt><dd>{{ record.confidence_score or '—' }}</dd>
+      <dt>priority</dt><dd>{{ record.priority_tier }} ({{ record.priority_score }})</dd>
+    </dl>
+
+    {% if issues %}
+    <div style="margin-bottom:1.25rem;padding:0.75rem;background:#fafafa;border-radius:6px;">
+      <div style="font-weight:600;font-size:0.875rem;margin-bottom:0.5rem;">Open Issues</div>
+      {% for issue in issues %}
+        <div style="font-size:0.8rem;margin-bottom:0.25rem;">
+          <code>{{ issue.issue_type }}</code> — {{ issue.message[:80] }}
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="form-group">
+      <label for="review_decision">复核决策 *</label>
+      <select id="review_decision" name="review_decision">
+        <option value="">— 未决策 —</option>
+        <option value="approved/accepted" {% if record.review_decision and 'accept' in record.review_decision|lower %}selected{% endif %}>approved/accepted</option>
+        <option value="rejected" {% if record.review_decision and record.review_decision|lower == 'rejected' %}selected{% endif %}>rejected</option>
+        <option value="needs_review" {% if record.review_decision and record.review_decision|lower == 'needs_review' %}selected{% endif %}>needs_review</option>
+      </select>
+      <div class="text-muted" style="font-size:0.75rem;margin-top:0.25rem;">
+        approved/accepted = 进入 confirmed roster；rejected = 进入 rejected roster；needs_review = 暂缓；空 = 未决策
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="review_decision_note">复核备注</label>
+      <textarea id="review_decision_note" name="review_decision_note" placeholder="记录复核依据、疑问或待跟进事项…">{{ record.review_decision_note or '' }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="resolved_issue_types">已解决的 issue 类型</label>
+      <input type="text" id="resolved_issue_types" name="resolved_issue_types"
+             value="{{ record.resolved_issue_types or '' }}"
+             placeholder="多个用 | 分隔，如: missing_affiliation | low_confidence">
+      <div class="text-muted" style="font-size:0.75rem;margin-top:0.25rem;">
+        当前 open issues: {{ record.open_issue_types or '无' }}
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">保存</button>
+      <a href="{{ url_for('record_view', person_id=record.person_id) }}" class="btn btn-secondary">取消</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

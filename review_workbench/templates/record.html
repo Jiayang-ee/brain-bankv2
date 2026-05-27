@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}{{ record.name }} - 复核记录{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+  <a href="{{ url_for('list_queue') }}" class="btn btn-secondary" style="font-size:0.8rem;">← 返回列表</a>
+  <h1 style="margin:0;">{{ record.name }}</h1>
+  {% set d = (record.review_decision or '')|trim|lower %}
+  {% if d in ['approved/accepted','accepted','approved'] %}
+    <span class="badge badge-accepted">已批准</span>
+  {% elif d == 'rejected' %}
+    <span class="badge badge-rejected">已拒绝</span>
+  {% elif d == 'needs_review' %}
+    <span class="badge badge-needs_review">需复核</span>
+  {% else %}
+    <span class="badge badge-undecided">未决策</span>
+  {% endif %}
+</div>
+
+<div class="grid-2">
+  <div>
+    <div class="card">
+      <h3>基本信息</h3>
+      <dl class="info-grid">
+        <dt>person_id</dt><dd>{{ record.person_id }}</dd>
+        <dt>机构</dt><dd>{{ record.school or '—' }}</dd>
+        <dt>院系</dt><dd>{{ record.department or '—' }}</dd>
+        <dt>title</dt><dd>{{ record.title or '—' }}</dd>
+        <dt>email</dt>
+        <dd>
+          {% if record.email %}
+            <a href="mailto:{{ record.email }}">{{ record.email }}</a>
+          {% else %}<span class="text-muted">缺失</span>{% endif %}
+        </dd>
+        <dt>homepage</dt>
+        <dd>
+          {% if record.personal_homepage %}
+            <a href="{{ record.personal_homepage }}" target="_blank" rel="noopener">{{ record.personal_homepage }}</a>
+          {% else %}<span class="text-muted">缺失</span>{% endif %}
+        </dd>
+        <dt>source</dt>
+        <dd>
+          {% if record.source_url %}
+            <a href="{{ record.source_url }}" target="_blank" rel="noopener">{{ record.source_url[:60] }}…</a>
+          {% else %}<span class="text-muted">—</span>{% endif %}
+        </dd>
+        <dt>source_type</dt><dd>{{ record.primary_source_type or '—' }}</dd>
+      </dl>
+    </div>
+
+    <div class="card">
+      <h3>置信度与分类</h3>
+      <dl class="info-grid">
+        <dt>confidence</dt>
+        <dd>
+          {% if record.confidence_score %}
+            <span style="color:{{ '#c62828' if (record.confidence_score|float) < 0.6 else '#2e7d32' }}">{{ record.confidence_score }}</span>
+          {% else %}?{% endif %}
+        </dd>
+        <dt>discipline_score</dt><dd>{{ record.discipline_score or '—' }}</dd>
+        <dt>discipline_review_status</dt><dd>{{ record.discipline_review_status or '—' }}</dd>
+        <dt>review_status</dt><dd>{{ record.review_status or '—' }}</dd>
+        <dt>priority</dt>
+        <dd>
+          <span class="badge badge-{% if record.priority_tier=='high' %}high{% elif record.priority_tier=='medium' %}medium{% elif record.priority_tier=='low' %}low{% else %}new{% endif %}">
+            {{ record.priority_tier or '?' }}
+          </span>
+          {{ record.priority_score }}
+        </dd>
+      </dl>
+    </div>
+
+    {% if record.open_issue_types %}
+    <div class="card">
+      <h3>Open Issues</h3>
+      <div style="font-size:0.875rem;">
+        {% for itype in record.open_issue_types.split('|') %}
+          <span class="badge badge-medium" style="margin:0.15rem;">{{ itype|trim }}</span>
+        {% endfor %}
+      </div>
+      {% if record.open_issue_messages %}
+      <div style="margin-top:0.75rem;">
+        {% for msg in record.open_issue_messages.split('||') %}
+          <div class="text-muted" style="margin-bottom:0.25rem;font-size:0.8rem;">{{ msg|trim }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if issues %}
+    <div class="card">
+      <h3>关联 Issues（{{ issues|length }}条）</h3>
+      <table>
+        <thead><tr><th>type</th><th>severity</th><th>message</th></tr></thead>
+        <tbody>
+          {% for issue in issues %}
+          <tr>
+            <td><code>{{ issue.issue_type }}</code></td>
+            <td><span class="badge badge-{{ issue.severity }}">{{ issue.severity }}</span></td>
+            <td style="font-size:0.8rem;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ issue.message }}">{{ issue.message }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="card">
+      <h3>发表信息</h3>
+      <dl class="info-grid">
+        <dt>近5年发表</dt><dd>{{ record.pub_last_5_year_total or '—' }}</dd>
+        <dt>A+</dt><dd>{{ record.pub_a_plus_total or '—' }}</dd>
+        <dt>A类</dt><dd>{{ record.pub_a_total or '—' }}</dd>
+        <dt>first_author</dt><dd>{{ record.pub_first_author_total or '—' }}</dd>
+        <dt>corresponding</dt><dd>{{ record.pub_corresponding_author_total or '—' }}</dd>
+        <dt>top期刊</dt><dd>{{ record.pub_top_total or '—' }}</dd>
+        <dt>期刊</dt><dd class="text-muted" style="font-size:0.8rem;max-width:250px;overflow:hidden;">{{ record.pub_journals or '—' }}</dd>
+        <dt>发表年份</dt><dd class="text-muted" style="font-size:0.8rem;">{{ record.pub_years or '—' }}</dd>
+      </dl>
+    </div>
+
+    <div class="card">
+      <h3>复核决策</h3>
+      {% if record.review_decision %}
+        <dl class="info-grid">
+          <dt>decision</dt>
+          <dd>
+            {% set d = record.review_decision|trim|lower %}
+            {% if d in ['approved/accepted','accepted','approved'] %}
+              <span class="badge badge-accepted">{{ record.review_decision }}</span>
+            {% elif d == 'rejected' %}
+              <span class="badge badge-rejected">{{ record.review_decision }}</span>
+            {% elif d == 'needs_review' %}
+              <span class="badge badge-needs_review">{{ record.review_decision }}</span>
+            {% else %}
+              <span class="badge badge-undecided">{{ record.review_decision }}</span>
+            {% endif %}
+          </dd>
+          {% if record.review_decision_note %}
+          <dt>备注</dt><dd style="font-size:0.875rem;white-space:pre-wrap;">{{ record.review_decision_note }}</dd>
+          {% endif %}
+          {% if record.resolved_issue_types %}
+          <dt>已解决issue</dt>
+          <dd>
+            {% for t in record.resolved_issue_types.split('|') %}
+              <span class="badge badge-accepted" style="margin:0.1rem;">{{ t|trim }}</span>
+            {% endfor %}
+          </dd>
+          {% endif %}
+        </dl>
+      {% else %}
+        <p class="text-muted">尚未填写决策</p>
+      {% endif %}
+      <div style="margin-top:1rem;">
+        <a href="{{ url_for('record_edit', person_id=record.person_id) }}" class="btn btn-primary">编辑决策</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>质量 gap 标记</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:0.35rem;">
+        {% if record.gap_missing_school == '1' %}<span class="badge badge-high">机构缺失</span>{% endif %}
+        {% if record.gap_missing_homepage == '1' %}<span class="badge badge-medium">homepage缺失</span>{% endif %}
+        {% if record.gap_missing_email == '1' %}<span class="badge badge-medium">email缺失</span>{% endif %}
+        {% if record.gap_low_confidence == '1' %}<span class="badge badge-medium">低置信度</span>{% endif %}
+        {% if record.gap_name_conflict == '1' %}<span class="badge badge-high">同名冲突</span>{% endif %}
+        {% if record.gap_discipline_uncertain == '1' %}<span class="badge badge-medium">学科不确定</span>{% endif %}
+        {% if record.gap_high_output_no_affiliation == '1' %}<span class="badge badge-high">高产出无机构</span>{% endif %}
+        {% if record.gap_missing_school != '1' and record.gap_missing_homepage != '1' and record.gap_missing_email != '1' and record.gap_low_confidence != '1' and record.gap_name_conflict != '1' and record.gap_discipline_uncertain != '1' and record.gap_high_output_no_affiliation != '1' %}
+          <span class="text-muted">无质量问题标记</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
