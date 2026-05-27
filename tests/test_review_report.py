@@ -210,10 +210,15 @@ def test_generate_run_record(tmp_path):
 
 
 def test_get_git_commit():
-    # Test with the actual repo
     repo = Path(__file__).resolve().parents[1]  # tests/ -> brain-bankv2/
     commit = get_git_commit(repo)
-    assert commit == "1f6862a"  # known current HEAD
+    # Must be a valid short SHA (7+ hex chars) and match current HEAD
+    import re
+    assert re.fullmatch(r"[0-9a-f]{7,}", commit), f"Expected short SHA, got {commit!r}"
+    actual_head = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=repo
+    ).stdout.strip()
+    assert commit == actual_head, f"Expected {actual_head!r}, got {commit!r}"
 
     # Test with non-git path returns "unknown"
     unknown = get_git_commit("/tmp")
