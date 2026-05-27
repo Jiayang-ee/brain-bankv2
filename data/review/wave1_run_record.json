@@ -1,18 +1,26 @@
 {
-  "run_id": "wave1-20260527T025705",
-  "generated_at": "2026-05-27T02:57:05.320214+00:00",
-  "git_commit": "55af67a",
-  "command": "review wave1-report --queue-csv data/review/wave1_review_queue.csv --gap-csv data/review/wave1_quality_gap_report.csv",
+  "run_id": "p15-roster-20260527T063000",
+  "generated_at": "2026-05-27T06:31:01.747295+00:00",
+  "git_commit": "823e9ec",
+  "command": "review roster --batch-name wave1 --output-dir data/review",
   "input_files": [
-    "/Users/wjy/multica_workspaces_desktop-api.multica.ai/2fd2732f-4029-492d-ab09-8a3845906e26/cbd7c01b/workdir/brain-bankv2/data/exports/people.csv",
-    "/Users/wjy/multica_workspaces_desktop-api.multica.ai/2fd2732f-4029-492d-ab09-8a3845906e26/cbd7c01b/workdir/brain-bankv2/data/review/issues.csv"
+    "data/exports/people.csv",
+    "data/review/wave1_p14_decisions.csv",
+    "data/review/issues.csv"
   ],
   "outputs": {
-    "review_queue": "/Users/wjy/multica_workspaces_desktop-api.multica.ai/2fd2732f-4029-492d-ab09-8a3845906e26/cbd7c01b/workdir/brain-bankv2/data/review/wave1_review_queue.csv",
-    "quality_gap_report": "/Users/wjy/multica_workspaces_desktop-api.multica.ai/2fd2732f-4029-492d-ab09-8a3845906e26/cbd7c01b/workdir/brain-bankv2/data/review/wave1_quality_gap_report.csv"
+    "confirmed": "data/review/wave1_confirmed.csv",
+    "deferred": "data/review/wave1_deferred.csv",
+    "rejected": "data/review/wave1_rejected.csv",
+    "quality_gap_report": "data/review/wave1_quality_gap_report.csv",
+    "review_queue": "data/review/wave1_review_queue.csv",
+    "run_record": "data/review/wave1_run_record.json"
   },
   "summary": {
-    "review_queue_rows": 589,
-    "quality_gap_categories": 7
+    "confirmed_count": 4,
+    "deferred_count": 585,
+    "rejected_count": 0,
+    "p14_decisions_applied": 4,
+    "p14_source": "data/review/wave1_p14_decisions.csv"
   }
 }
