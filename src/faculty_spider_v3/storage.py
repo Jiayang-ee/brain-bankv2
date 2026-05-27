@@ -1233,9 +1233,6 @@ class FacultySpiderV3Store:
         if not assignments:
             return
 
-        if not assignments:
-            return
-
         with self.connect() as conn:
             conn.execute(f"update people set {', '.join(assignments)} where id = ?", params)
 

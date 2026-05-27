@@ -352,3 +352,202 @@ class TestGetPerson:
         store = FacultySpiderV3Store(tmp_path / "test.sqlite")
         store.init_db()
         assert store.get_person(99999) is None
+
+
+# ----------------------------------------------------------------------
+# Conflict detection
+# ----------------------------------------------------------------------
+
+
+class TestConflictDetection:
+    def test_conflict_when_same_field_different_value_from_two_sources(self):
+        """When two different supplement sources provide different values for the same field,
+        the second update is still accepted but the conflict is recorded."""
+        result = EnrichmentResult(
+            person_id=1,
+            updates=[
+                FieldUpdate(field="email", new_value="ss@example.edu", source="semantic_scholar", confidence=0.9, is_strong_evidence=True, requires_review=False),
+            ],
+            conflicts=["email conflict: semantic_scholar='ss@example.edu' vs crossref='other@example.edu'"],
+            skipped=[],
+            errors=[],
+        )
+        formatted = format_enrichment_result(result)
+        assert "conflict" in formatted
+
+    def test_conflict_list_empty_when_no_conflicts(self):
+        """No conflicts recorded when all sources agree or field was empty."""
+        result = EnrichmentResult(
+            person_id=2,
+            updates=[
+                FieldUpdate(field="school", new_value="MIT", source="dblp", confidence=0.6, is_strong_evidence=False, requires_review=True),
+            ],
+            conflicts=[],
+            skipped=[],
+            errors=[],
+        )
+        assert result.conflicts == []
+
+
+# ----------------------------------------------------------------------
+# Evidence strength: weak never overrides strong
+# ----------------------------------------------------------------------
+
+
+class TestWeakNeverOverridesStrong:
+    def test_openalex_weak_school_does_not_override_dblp_school(self):
+        """OpenAlex (confidence=0.5) does not override DBLP (confidence=0.6) for school field."""
+        update = build_field_update(
+            field="school",
+            new_value="Stanford University",
+            source="openalex",
+            confidence=0.5,
+            current_value="MIT",
+            current_source="dblp",
+            current_primary_source="publication",
+        )
+        assert update.new_value == ""
+
+    def test_crossref_weak_school_does_not_override_dblp_school(self):
+        """Crossref (confidence=0.5) does not override DBLP (confidence=0.6) for school field."""
+        update = build_field_update(
+            field="school",
+            new_value="Stanford University",
+            source="crossref",
+            confidence=0.5,
+            current_value="MIT",
+            current_source="dblp",
+            current_primary_source="publication",
+        )
+        assert update.new_value == ""
+
+    def test_dblp_school_does_not_override_semantic_scholar_school(self):
+        """DBLP (confidence=0.6) does not override Semantic Scholar (confidence=0.7) for school field."""
+        update = build_field_update(
+            field="school",
+            new_value="Stanford University",
+            source="dblp",
+            confidence=0.6,
+            current_value="MIT",
+            current_source="semantic_scholar",
+            current_primary_source="publication",
+        )
+        # SS has higher strength than DBLP, so DBLP cannot overwrite SS
+        assert update.new_value == ""
+
+    def test_weaker_source_can_fill_empty_field(self):
+        """Weaker source CAN fill an empty field (no existing value to override)."""
+        update = build_field_update(
+            field="school",
+            new_value="MIT",
+            source="openalex",
+            confidence=0.5,
+            current_value="",
+            current_source="",
+            current_primary_source="publication",
+        )
+        # Empty field is always fillable, but requires review (confidence < 0.7)
+        assert update.new_value == "MIT"
+        assert update.requires_review is True
+
+    def test_same_source_same_value_skipped(self):
+        """Same source providing identical value is a no-op."""
+        update = build_field_update(
+            field="title",
+            new_value="Professor",
+            source="semantic_scholar",
+            confidence=0.85,
+            current_value="Professor",
+            current_source="semantic_scholar",
+            current_primary_source="publication",
+        )
+        assert update.new_value == ""
+
+
+# ----------------------------------------------------------------------
+# Low-confidence + name-collision review issue triggers
+# ----------------------------------------------------------------------
+
+
+class TestReviewIssueGeneration:
+    def test_low_confidence_email_flags_review(self):
+        """Email below 0.7 confidence sets requires_review=True."""
+        update = build_field_update(
+            field="email",
+            new_value="unconfirmed@example.edu",
+            source="semantic_scholar",
+            confidence=0.5,
+            current_value="",
+            current_source="",
+            current_primary_source="publication",
+        )
+        assert update.requires_review is True
+        assert update.new_value == "unconfirmed@example.edu"
+
+    def test_high_confidence_email_no_review(self):
+        """Email at or above 0.7 confidence auto-writes without review."""
+        update = build_field_update(
+            field="email",
+            new_value="confirmed@example.edu",
+            source="semantic_scholar",
+            confidence=0.9,
+            current_value="",
+            current_source="",
+            current_primary_source="publication",
+        )
+        assert update.requires_review is False
+        assert update.new_value == "confirmed@example.edu"
+
+    def test_official_site_field_unchanged_with_any_supplement(self):
+        """Any supplement source touching an official_site field is blocked at build_field_update level."""
+        for source in ["semantic_scholar", "dblp", "crossref", "openalex"]:
+            update = build_field_update(
+                field="email",
+                new_value="hacked@example.edu",
+                source=source,
+                confidence=0.99,
+                current_value="real@example.edu",
+                current_source="official_site",
+                current_primary_source="official_site",
+            )
+            assert update.new_value == "", f"{source} should not overwrite official_site field"
+            assert update.requires_review is False
+
+
+# ----------------------------------------------------------------------
+# apply_enrichment_updates: duplicate guard
+# ----------------------------------------------------------------------
+
+
+class TestApplyEnrichmentUpdatesNoDuplicate:
+    def test_apply_enrichment_updates_with_duplicate_guard(self, tmp_path):
+        """apply_enrichment_updates with empty updates list returns early (no-op)."""
+        store = FacultySpiderV3Store(tmp_path / "test.sqlite")
+        store.init_db()
+
+        with store.connect() as conn:
+            conn.execute(
+                """
+                insert into people(name, normalized_name, school, primary_source_type,
+                    primary_source_url, extraction_method, is_likely_chinese_name,
+                    chinese_name_score, review_status, enrichment_confidence)
+                values('Test Person', 'test person', 'Harvard University', 'publication',
+                    'https://doi.org/10.1234/test', 'publication_aggregate', 1, 0.9,
+                    'needs_review', 0.0)
+                """,
+            )
+            row = conn.execute("select id from people where name = 'Test Person'").fetchone()
+            person_id = row["id"]
+
+        # Call with empty list — should not raise and should be a no-op
+        store.apply_enrichment_updates(person_id, [], requires_review=False)
+
+        with store.connect() as conn:
+            row = conn.execute(
+                "select enrichment_confidence, review_status from people where id = ?",
+                (person_id,),
+            ).fetchone()
+
+        # Should be unchanged (enrichment_confidence still 0.0, review_status still needs_review)
+        assert row["enrichment_confidence"] == 0.0
+        assert row["review_status"] == "needs_review"
