@@ -1,0 +1,8 @@
+﻿gap_category,gap_category_label,severity,count,examples,recommendation
+missing_school,机构缺失,high,86,Baoli Liu (https://doi.org/10.1016/j.tre.2026.104913); Chaorui Huang (https://doi.org/10.1016/j.ijpe.2026.110065); Chaorui Shen (https://doi.org/10.1016/j.dss.2026.114681),补强机构信息：优先通过论文作者页、ORCID、Semantic Scholar 查找机构
+missing_homepage_email,homepage/email 缺失,medium,1166,"homepage缺失: 585, email缺失: 581",通过官网或 LinkedIn 补全 contact 信息，P12 优先级处理
+low_confidence,低置信度,medium,391,Baoli Liu (conf=0.55); Chaorui Huang (conf=0.55); Chaorui Shen (conf=0.55),低置信度记录人工复核时优先确认身份唯一性，避免同名误归并
+name_conflict,同名冲突,high,0,,同名冲突需人工确认是否为同一人，避免错误合并
+discipline_uncertain,学科不确定,medium,553,Baoli Liu (score=0.0); Chaorui Huang (score=0.0); Chaorui Shen (score=0.0),学科评分低于 0.5 且状态为 needs_review 需人工确认相关性
+source_errors,数据质量问题,medium,24,low_confidence: HTML extraction confidence below thresho; low_confidence: HTML extraction confidence below thresho; low_confidence: HTML extraction confidence below thresho,高/中严重度数据问题优先修复，尤其是 affiliation 相关问题
+abstract_missing,abstract 缺失,low,0,当前 pipeline 不采集 abstract，此项暂无数据,如需 abstract 字段，后续可从 Crossref 或 Semantic Scholar 补充
