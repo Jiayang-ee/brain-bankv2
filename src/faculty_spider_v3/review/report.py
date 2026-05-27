@@ -443,6 +443,107 @@ def generate_run_record(
     return record
 
 
+# Roster export fields (minimal identity + decision summary for downstream use)
+ROSTER_FIELDS = [
+    "person_id",
+    "name",
+    "school",
+    "department",
+    "title",
+    "email",
+    "personal_homepage",
+    "primary_source_type",
+    "review_status",
+    "review_decision",
+    "review_decision_note",
+    "resolved_issue_types",
+]
+
+
+def _build_issue_buckets(review_issue_rows: list) -> dict:
+    """Group resolved review issues by person_id for roster export."""
+    buckets: dict = {}
+    for row in review_issue_rows:
+        pid = row["person_id"]
+        if pid is None:
+            continue
+        # Only include resolved issues in the roster resolved_issue_types field
+        if row.get("status") != "resolved":
+            continue
+        bucket = buckets.setdefault(pid, {"issue_types": [], "messages": [], "source_urls": []})
+        bucket["issue_types"].append(row["issue_type"])
+        bucket["messages"].append(row["message"])
+        if row.get("source_url"):
+            bucket["source_urls"].append(row["source_url"])
+    return buckets
+
+
+def export_review_roster(
+    people_rows: list,
+    review_issue_rows: list,
+    output_dir: str | Path,
+    batch_name: str,
+) -> dict:
+    """
+    Export confirmed / deferred / rejected rosters from reviewed people.
+
+    confirmed : review_status in ('accepted', 'approved')
+    deferred  : review_status == 'needs_review'
+    rejected : review_status == 'rejected'
+    Empty / new review_status is excluded from all rosters.
+
+    Roster files are named: <output_dir>/<batch_name>_confirmed.csv (etc.)
+    Returns a summary dict with counts per roster type.
+    """
+    buckets = _build_issue_buckets(review_issue_rows)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    rosters = {"confirmed": [], "deferred": [], "rejected": []}
+
+    for person in people_rows:
+        pid = person["id"]
+        status = (person.get("review_status") or "").strip().lower()
+        bucket = buckets.get(pid, {})
+        resolved = bucket.get("issue_types", [])
+
+        if status in ("accepted", "approved"):
+            rosters["confirmed"].append(_roster_row(person, resolved))
+        elif status == "needs_review":
+            rosters["deferred"].append(_roster_row(person, resolved))
+        elif status == "rejected":
+            rosters["rejected"].append(_roster_row(person, resolved))
+
+    result = {}
+    for roster_name, rows in rosters.items():
+        filename = f"{batch_name}_{roster_name}.csv"
+        filepath = output_dir / filename
+        with filepath.open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=ROSTER_FIELDS, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+        result[roster_name] = {"path": str(filepath), "count": len(rows)}
+
+    return result
+
+
+def _roster_row(person: dict, resolved_issue_types: list[str]) -> dict:
+    return {
+        "person_id": person["id"],
+        "name": person.get("name", ""),
+        "school": person.get("school", ""),
+        "department": person.get("department", ""),
+        "title": person.get("title", ""),
+        "email": person.get("email", ""),
+        "personal_homepage": person.get("personal_homepage", ""),
+        "primary_source_type": person.get("primary_source_type", ""),
+        "review_status": person.get("review_status", ""),
+        "review_decision": person.get("review_decision", ""),
+        "review_decision_note": person.get("review_decision_note", ""),
+        "resolved_issue_types": " | ".join(resolved_issue_types),
+    }
+
+
 def get_git_commit(cwd: str | Path | None = None) -> str:
     try:
         result = subprocess.run(

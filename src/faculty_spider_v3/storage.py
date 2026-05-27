@@ -1294,7 +1294,9 @@ class FacultySpiderV3Store:
             reader = _csv.DictReader(handle)
             for row in reader:
                 pid = int(row["person_id"])
-                decision = row.get("review_decision", "").strip()
+                decision = row.get("review_decision", "").strip().lower()
+                if decision == "approved":
+                    decision = "accepted"
                 decision_note = row.get("review_decision_note", "").strip()
                 resolved_raw = row.get("resolved_issue_types", "").strip()
                 resolved_types = resolved_raw.split(" | ") if resolved_raw else []

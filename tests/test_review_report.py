@@ -10,6 +10,7 @@ import pytest
 from faculty_spider_v3.review.report import (
     _compute_priority_score,
     _tier_from_score,
+    export_review_roster,
     export_wave1_quality_gap_report,
     export_wave1_review_queue,
     generate_run_record,
@@ -304,3 +305,147 @@ def test_cli_wave1_report_smoke(tmp_path):
     assert Path(output["queue_csv"]).exists()
     assert Path(output["gap_csv"]).exists()
     assert Path(output["run_record"]).exists()
+
+
+def test_export_review_roster(tmp_path):
+    """confirmed/deferred/rejected rosters are separated correctly; empty status excluded."""
+    people_rows = [
+        {
+            "id": 1, "name": "Accepted Person", "school": "MIT",
+            "department": "CS", "title": "Professor",
+            "email": "mit@example.edu", "personal_homepage": "https://mit.edu/1",
+            "primary_source_type": "official_site",
+            "review_status": "accepted",
+            "review_decision": "accepted",
+            "review_decision_note": "Looks good.",
+        },
+        {
+            "id": 2, "name": "Approved Person", "school": "Stanford",
+            "department": "CS", "title": "Assistant Professor",
+            "email": "stanford@example.edu", "personal_homepage": "",
+            "primary_source_type": "official_site",
+            "review_status": "approved",  # post-import state (was approved by human reviewer)
+            "review_decision": "approved",
+            "review_decision_note": "Also good.",
+        },
+        {
+            "id": 3, "name": "Needs Review Person", "school": "Berkeley",
+            "department": "", "title": "", "email": "",
+            "personal_homepage": "",
+            "primary_source_type": "publication",
+            "review_status": "needs_review",
+            "review_decision": "",
+            "review_decision_note": "",
+        },
+        {
+            "id": 4, "name": "Rejected Person", "school": "Yale",
+            "department": "", "title": "", "email": "",
+            "personal_homepage": "",
+            "primary_source_type": "publication",
+            "review_status": "rejected",
+            "review_decision": "rejected",
+            "review_decision_note": "Not relevant.",
+        },
+        {
+            "id": 5, "name": "New Person", "school": "Harvard",
+            "department": "", "title": "", "email": "",
+            "personal_homepage": "",
+            "primary_source_type": "official_site",
+            "review_status": "new",
+            "review_decision": "",
+            "review_decision_note": "",
+        },
+    ]
+
+    issue_rows = [
+        {
+            "person_id": 2,
+            "issue_type": "missing_affiliation",
+            "severity": "medium",
+            "message": "No affiliation.",
+            "source_url": "https://doi.org/10.x/1",
+            "status": "resolved",
+        },
+        {
+            "person_id": 4,
+            "issue_type": "low_confidence",
+            "severity": "low",
+            "message": "Low confidence.",
+            "source_url": "https://doi.org/10.x/2",
+            "status": "open",
+        },
+    ]
+
+    result = export_review_roster(people_rows, issue_rows, tmp_path, "wave1")
+
+    confirmed = result["confirmed"]
+    deferred = result["deferred"]
+    rejected = result["rejected"]
+
+    assert confirmed["count"] == 2
+    assert deferred["count"] == 1
+    assert rejected["count"] == 1
+
+    # confirmed roster includes accepted and approved
+    with open(confirmed["path"], encoding="utf-8-sig") as f:
+        confirmed_rows = list(csv.DictReader(f))
+    confirmed_names = {r["name"] for r in confirmed_rows}
+    assert confirmed_names == {"Accepted Person", "Approved Person"}
+
+    # approved person should have review_status='approved' (from CSV field)
+    approved_row = next(r for r in confirmed_rows if r["name"] == "Approved Person")
+    assert approved_row["review_decision"] == "approved"
+    assert approved_row["review_status"] == "approved"
+
+    # deferred roster
+    with open(deferred["path"], encoding="utf-8-sig") as f:
+        deferred_rows = list(csv.DictReader(f))
+    assert deferred_rows[0]["name"] == "Needs Review Person"
+
+    # rejected roster
+    with open(rejected["path"], encoding="utf-8-sig") as f:
+        rejected_rows = list(csv.DictReader(f))
+    assert rejected_rows[0]["name"] == "Rejected Person"
+
+    # New Person (id=5) should not appear in any roster
+    all_names = {r["name"] for r in confirmed_rows + deferred_rows + rejected_rows}
+    assert "New Person" not in all_names
+
+
+def test_export_review_roster_resolved_issue_types(tmp_path):
+    """resolved issue types are written to resolved_issue_types field."""
+    people_rows = [
+        {
+            "id": 1, "name": "Resolved Person", "school": "MIT",
+            "department": "CS", "title": "Professor",
+            "email": "mit@example.edu", "personal_homepage": "",
+            "primary_source_type": "official_site",
+            "review_status": "accepted",
+            "review_decision": "accepted",
+            "review_decision_note": "Good.",
+        },
+    ]
+
+    issue_rows = [
+        {
+            "person_id": 1,
+            "issue_type": "name_filter_uncertain",
+            "severity": "medium",
+            "message": "Borderline name.",
+            "source_url": "https://example.edu/1",
+            "status": "resolved",
+        },
+        {
+            "person_id": 1,
+            "issue_type": "missing_affiliation",
+            "severity": "medium",
+            "message": "No affiliation.",
+            "source_url": "https://example.edu/2",
+            "status": "open",
+        },
+    ]
+
+    result = export_review_roster(people_rows, issue_rows, tmp_path, "wave1")
+    with open(result["confirmed"]["path"], encoding="utf-8-sig") as f:
+        rows = list(csv.DictReader(f))
+    assert rows[0]["resolved_issue_types"] == "name_filter_uncertain"
